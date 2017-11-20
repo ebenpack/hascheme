@@ -75,18 +75,18 @@ p <|> q =
       Right [(v, out)] -> Right [(v, out)]
 
 sat :: (Char -> Bool) -> Parser Char
-sat p =
-  item >>= \x ->
-    if p x
-      then return x
-      else failure
+sat p = do
+  x <- item
+  if p x
+    then return x
+    else failure
 
 rej :: (Char -> Bool) -> Parser Char
-rej p =
-  item >>= \x ->
-    if not (p x)
-      then return x
-      else failure
+rej p = do
+  x <- item
+  if not (p x)
+    then return x
+    else failure
 
 digit :: Parser Char
 digit = sat isDigit
