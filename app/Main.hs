@@ -151,14 +151,16 @@ parseFloatHelper base p reader = do
   where
     helper :: Integer -> Integer -> Double
     helper whole decimal =
-      let d = fromIntegral decimal :: Double
-          w = fromIntegral whole :: Double
-          b = fromIntegral base :: Double
-          e = logBase b d
-          floored = floor e
-          f = fromIntegral floored
-          g = d / (b ** (f + 1))
-      in w + g
+      if decimal == 0
+        then 0
+        else let d = fromIntegral decimal :: Double
+                 w = fromIntegral whole :: Double
+                 b = fromIntegral base :: Double
+                 e = logBase b d
+                 floored = floor e
+                 f = fromIntegral floored
+                 g = d / (b ** (f + 1))
+             in w + g
 
 parseComplexHelper :: Parser LispVal -> Parser LispVal -> Parser LispVal
 parseComplexHelper pn pf = do
