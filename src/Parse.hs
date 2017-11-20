@@ -1,157 +1,203 @@
-module Parse
-  ( ParseError
-  , ParseResult
-  , Parser
-  , parse
-  , failure
-  , item
-  , return
-  , (<|>)
-  , sat
-  , rej
-  , digit
-  , lower
-  , upper
-  , letter
-  , alphanum
-  , space
-  , char
-  , string
-  , many'
-  , many1
-  , skipMany
-  , skipMany1
-  , oneOf
-  , noneOf
-  , hexDigit
-  , octDigit
-  ) where
+module Parse where
 
-import Data.Char
-       (isAlpha, isAlphaNum, isDigit, isLower, isSpace, isUpper)
+import Control.Monad (liftM)
+import Data.Char (chr, digitToInt, toLower)
+import Data.Complex
+import Data.Maybe (fromJust, listToMaybe)
+import Data.Ratio
+import DataTypes (LispVal(..))
+import Numeric (readDec, readHex, readInt, readOct)
+import ParserCombinators
+       (Parser, (<|>), alphanum, char, digit, hexDigit, letter, many',
+        many1, noneOf, octDigit, oneOf, parse, skipMany1, space, string)
 
-import Control.Applicative (Applicative)
-import Control.Monad (ap, liftM)
+symbol :: Parser Char
+symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
 
-data ParseError =
-  ParseError String
-  deriving (Show)
+spaces :: Parser ()
+spaces = skipMany1 space
 
-type ParseResult a = Either ParseError [(a, String)]
-
-newtype Parser a = Parser
-  { parse :: String -> ParseResult a
-  }
-
-instance Monad Parser where
-  return v = Parser $ \inp -> Right [(v, inp)]
-  p >>= f =
-    Parser $ \inp ->
-      case parse p inp of
-        Left a -> Left a
-        Right [(v, out)] -> parse (f v) out
-
-instance Functor Parser where
-  fmap = liftM
-
-instance Applicative Parser where
-  pure = return
-  (<*>) = ap
-
-failure :: Parser a
-failure = Parser $ \inp -> Left (ParseError "Error")
-
-item :: Parser Char
-item =
-  Parser $ \inp ->
-    case inp of
-      [] -> Left (ParseError "Error")
-      (x:xs) -> Right [(x, xs)]
-
-(<|>) :: Parser a -> Parser a -> Parser a
-p <|> q =
-  Parser $ \inp ->
-    case parse p inp of
-      Left _ -> parse q inp
-      Right [(v, out)] -> Right [(v, out)]
-
-sat :: (Char -> Bool) -> Parser Char
-sat p =
-  item >>= \x ->
-    if p x
-      then return x
-      else failure
-
-rej :: (Char -> Bool) -> Parser Char
-rej p =
-  item >>= \x ->
-    if not (p x)
-      then return x
-      else failure
-
-digit :: Parser Char
-digit = sat isDigit
-
-hexDigit :: Parser Char
-hexDigit = digit <|> oneOf "ABCDEFabcdef"
-
-octDigit :: Parser Char
-octDigit = oneOf "01234567"
-
-lower :: Parser Char
-lower = sat isLower
-
-upper :: Parser Char
-upper = sat isUpper
-
-letter :: Parser Char
-letter = sat isAlpha
-
-alphanum :: Parser Char
-alphanum = sat isAlphaNum
-
-space :: Parser Char
-space = sat isSpace
-
-char :: Char -> Parser Char
-char x = sat (== x)
-
-string :: String -> Parser String
-string [] = return []
-string (x:xs) = do
-  char x
-  string xs
-  return (x : xs)
-
-many' :: Parser a -> Parser [a]
-many' p = many1 p <|> return []
-
-many1 :: Parser a -> Parser [a]
-many1 p = do
-  v <- p
-  vs <- many' p
-  return (v : vs)
-
-skipMany :: Parser a -> Parser ()
-skipMany p = do
-  many' p
-  return ()
-
-skipMany1 :: Parser a -> Parser ()
-skipMany1 p = do
-  many1 p
-  return ()
-
-oneOf :: String -> Parser Char
-oneOf [] = failure
-oneOf (x:xs) = do
-  y <- char x <|> oneOf xs
-  return y
-
-noneOf :: String -> Parser Char
-noneOf [] = item
-noneOf (x:xs) = do
-  y <- notChar x
-  return y
+parseString :: Parser LispVal
+parseString = do
+  char '"'
+  x <- many' (escapedChar <|> noneOf "\"")
+  char '"'
+  return $ String x
   where
-    notChar c = rej (== c)
+    escapedChar :: Parser Char
+    escapedChar = (char '\\') >> (oneOf "\"nrt\\")
+
+parseAtom :: Parser LispVal
+parseAtom = do
+  first <- letter <|> symbol
+  rest <- many' (letter <|> digit <|> symbol)
+  let atom = first : rest
+  return $
+    case atom of
+      "#t" -> Bool True
+      "#f" -> Bool False
+      _ -> Atom atom
+
+parseCharacter :: Parser LispVal
+parseCharacter
+    -- TODO: Meta-, bucky-bit stuff
+ = do
+  string "#\\"
+  c <- many1 letter
+  return $
+    case map toLower c of
+      "newline" -> Character '\n'
+      "space" -> Character ' '
+      "altmode" -> Character $ chr 27
+      "backnext" -> Character $ chr 31
+      "backspace" -> Character $ chr 8
+      "call" -> Character $ chr 26
+      "linefeed" -> Character $ chr 10
+      "page" -> Character $ chr 12
+      "return" -> Character $ chr 13
+      "rubout" -> Character $ chr 127
+      "tab" -> Character $ chr 9
+      [x] -> Character x
+
+parseNumber :: Parser LispVal
+parseNumber =
+  parseDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseDecimal
+      'o' -> parseOctal
+      'x' -> parseHex
+      'b' -> parseBinary
+
+parseFloat :: Parser LispVal
+parseFloat =
+  parseFloatDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseFloatDecimal
+      'o' -> parseFloatOctal
+      'x' -> parseFloatHex
+      'b' -> parseFloatBinary
+
+parseComplex :: Parser LispVal
+parseComplex =
+  parseComplexDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseComplexDecimal
+      'o' -> parseComplexOctal
+      'x' -> parseComplexHex
+      'b' -> parseComplexBinary
+
+parseRational :: Parser LispVal
+parseRational =
+  parseRationalDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseRationalDecimal
+      'o' -> parseRationalOctal
+      'x' -> parseRationalHex
+      'b' -> parseRationalBinary
+
+parseDecimal :: Parser LispVal
+parseDecimal = Number . fst . head . readDec <$> many1 digit
+
+parseOctal :: Parser LispVal
+parseOctal = Number . fst . head . readOct <$> many1 octDigit
+
+parseHex :: Parser LispVal
+parseHex = Number . fst . head . readHex <$> many1 hexDigit
+
+parseBinary :: Parser LispVal
+parseBinary = Number . fst . head . readBinary <$> many1 (oneOf "01")
+
+parseFloatHelper :: Int -> Parser Char -> (ReadS Integer) -> Parser LispVal
+parseFloatHelper base p reader = do
+  w <- many1 p
+  char '.'
+  d <- many1 p
+  let whole = fst . head $ reader w
+      decimal = fst . head $ reader d
+  return $ Float (helper whole decimal)
+  where
+    helper :: Integer -> Integer -> Double
+    helper whole decimal =
+      if decimal == 0
+        then 0
+        else let d = fromIntegral decimal :: Double
+                 w = fromIntegral whole :: Double
+                 b = fromIntegral base :: Double
+                 e = logBase b d
+                 floored = floor e
+                 f = fromIntegral floored
+                 g = d / (b ** (f + 1))
+             in w + g
+
+parseComplexHelper :: Parser LispVal -> Parser LispVal -> Parser LispVal
+parseComplexHelper pn pf = do
+  real <- fmap toDouble (pf <|> pn)
+  char '+'
+  imaginary <- fmap toDouble (pf <|> pn)
+  char 'i'
+  return $ Complex (real :+ imaginary)
+  where
+    toDouble (Float x) = x
+    toDouble (Number x) = fromIntegral x
+
+parseRationalHelper :: Parser LispVal -> Parser LispVal
+parseRationalHelper p = do
+  num <- fmap toInt p
+  char '/'
+  denom <- fmap toInt p
+  return $ Rational (num % denom)
+  where
+    toInt (Number x) = x
+
+parseRationalDecimal :: Parser LispVal
+parseRationalDecimal = parseRationalHelper parseDecimal
+
+parseRationalOctal :: Parser LispVal
+parseRationalOctal = parseRationalHelper parseOctal
+
+parseRationalHex :: Parser LispVal
+parseRationalHex = parseRationalHelper parseHex
+
+parseRationalBinary :: Parser LispVal
+parseRationalBinary = parseRationalHelper parseBinary
+
+parseComplexDecimal :: Parser LispVal
+parseComplexDecimal = parseComplexHelper parseDecimal parseFloatDecimal
+
+parseComplexOctal :: Parser LispVal
+parseComplexOctal = parseComplexHelper parseOctal parseFloatOctal
+
+parseComplexHex :: Parser LispVal
+parseComplexHex = parseComplexHelper parseHex parseFloatHex
+
+parseComplexBinary :: Parser LispVal
+parseComplexBinary = parseComplexHelper parseBinary parseFloatBinary
+
+parseFloatDecimal :: Parser LispVal
+parseFloatDecimal = parseFloatHelper 10 digit readDec
+
+parseFloatOctal :: Parser LispVal
+parseFloatOctal = parseFloatHelper 8 octDigit readOct
+
+parseFloatBinary :: Parser LispVal
+parseFloatBinary = parseFloatHelper 2 (oneOf "01") readBinary
+
+parseFloatHex :: Parser LispVal
+parseFloatHex = parseFloatHelper 16 hexDigit readHex
+
+readBinary :: ReadS Integer
+readBinary = readInt 2 (`elem` "01") digitToInt
+
+parseExpr :: Parser LispVal
+parseExpr =
+  parseComplex <|> parseRational <|> parseFloat <|> parseNumber <|> parseAtom <|>
+  parseString <|>
+  parseCharacter
