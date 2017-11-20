@@ -1,8 +1,7 @@
 module ParserCombinators
-  ( ParseError
-  , ParseResult
-  , Parser
-  , parse
+  ( ParseError(..)
+  , ParseResult(..)
+  , Parser(..)
   , failure
   , item
   , return
@@ -35,7 +34,7 @@ import Control.Monad (ap, liftM)
 
 data ParseError =
   ParseError String
-  deriving (Show)
+  deriving (Show, Eq)
 
 type ParseResult a = Either ParseError [(a, String)]
 
