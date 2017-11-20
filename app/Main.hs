@@ -2,7 +2,9 @@ module Main where
 
 import Control.Monad (liftM)
 import Data.Char (chr, digitToInt, toLower)
+import Data.Complex
 import Data.Maybe (fromJust, listToMaybe)
+import Data.Ratio
 import Numeric (readDec, readHex, readInt, readOct)
 import Parse
        (Parser, (<|>), alphanum, char, digit, hexDigit, letter, many',
@@ -15,7 +17,9 @@ data LispVal
   | DottedList [LispVal]
                LispVal
   | Number Integer
-  | Float Float
+  | Float Double
+  | Rational Rational
+  | Complex (Complex Double)
   | String String
   | Character Char
   | Bool Bool
@@ -60,7 +64,9 @@ parseAtom = do
       _ -> Atom atom
 
 parseCharacter :: Parser LispVal
-parseCharacter = do
+parseCharacter
+    -- TODO: Meta-, bucky-bit stuff
+ = do
   string "#\\"
   c <- many1 letter
   return $
@@ -78,19 +84,9 @@ parseCharacter = do
       "tab" -> Character $ chr 9
       [x] -> Character x
 
--- parseFloat :: Parser LispVal
--- parseFloat =
---   parseDecimal <|> do
---     char '#'
---     base <- oneOf "bdox"
---     case base of
---       'd' -> parseDecimalFloat
---     --   'o' -> parseOctalFloat
---     --   'x' -> parseHexFloat
---     --   'b' -> parseBinaryFloat
 parseNumber :: Parser LispVal
 parseNumber =
-  parseFloat <|> parseDecimal <|> do
+  parseDecimal <|> do
     char '#'
     base <- oneOf "bdox"
     case base of
@@ -98,6 +94,39 @@ parseNumber =
       'o' -> parseOctal
       'x' -> parseHex
       'b' -> parseBinary
+
+parseFloat :: Parser LispVal
+parseFloat =
+  parseFloatDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseFloatDecimal
+      'o' -> parseFloatOctal
+      'x' -> parseFloatHex
+      'b' -> parseFloatBinary
+
+parseComplex :: Parser LispVal
+parseComplex =
+  parseComplexDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseComplexDecimal
+      'o' -> parseComplexOctal
+      'x' -> parseComplexHex
+      'b' -> parseComplexBinary
+
+parseRational :: Parser LispVal
+parseRational =
+  parseRationalDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    case base of
+      'd' -> parseRationalDecimal
+      'o' -> parseRationalOctal
+      'x' -> parseRationalHex
+      'b' -> parseRationalBinary
 
 parseDecimal :: Parser LispVal
 parseDecimal = Number . fst . head . readDec <$> many1 digit
@@ -111,17 +140,6 @@ parseHex = Number . fst . head . readHex <$> many1 hexDigit
 parseBinary :: Parser LispVal
 parseBinary = Number . fst . head . readBinary <$> many1 (oneOf "01")
 
-parseFloat :: Parser LispVal
-parseFloat =
-  parseFloatDecimal <|> do
-    char '#'
-    base <- oneOf "bdox"
-    case base of
-      'd' -> parseFloatDecimal
-      'o' -> parseFloatOctal
-      'x' -> parseFloatHex
-      'b' -> parseFloatBinary
-
 parseFloatHelper :: Int -> Parser Char -> (ReadS Integer) -> Parser LispVal
 parseFloatHelper base p reader = do
   w <- many1 p
@@ -131,41 +149,78 @@ parseFloatHelper base p reader = do
       decimal = fst . head $ reader d
   return $ Float (helper whole decimal)
   where
-    helper :: Integer -> Integer -> Float
+    helper :: Integer -> Integer -> Double
     helper whole decimal =
-      let d = fromIntegral decimal :: Float
-          w = fromIntegral whole :: Float
-          b = fromIntegral base :: Float
+      let d = fromIntegral decimal :: Double
+          w = fromIntegral whole :: Double
+          b = fromIntegral base :: Double
           e = logBase b d
           floored = floor e
           f = fromIntegral floored
           g = d / (b ** (f + 1))
       in w + g
 
+parseComplexHelper :: Parser LispVal -> Parser LispVal -> Parser LispVal
+parseComplexHelper pn pf = do
+  real <- fmap toDouble (pf <|> pn)
+  char '+'
+  imaginary <- fmap toDouble (pf <|> pn)
+  char 'i'
+  return $ Complex (real :+ imaginary)
+  where
+    toDouble (Float x) = x
+    toDouble (Number x) = fromIntegral x
+
+parseRationalHelper :: Parser LispVal -> Parser LispVal
+parseRationalHelper p = do
+  num <- fmap toInt p
+  char '/'
+  denom <- fmap toInt p
+  return $ Rational (num % denom)
+  where
+    toInt (Number x) = x
+
+parseRationalDecimal :: Parser LispVal
+parseRationalDecimal = parseRationalHelper parseDecimal
+
+parseRationalOctal :: Parser LispVal
+parseRationalOctal = parseRationalHelper parseOctal
+
+parseRationalHex :: Parser LispVal
+parseRationalHex = parseRationalHelper parseHex
+
+parseRationalBinary :: Parser LispVal
+parseRationalBinary = parseRationalHelper parseBinary
+
+parseComplexDecimal :: Parser LispVal
+parseComplexDecimal = parseComplexHelper parseDecimal parseFloatDecimal
+
+parseComplexOctal :: Parser LispVal
+parseComplexOctal = parseComplexHelper parseOctal parseFloatOctal
+
+parseComplexHex :: Parser LispVal
+parseComplexHex = parseComplexHelper parseHex parseFloatHex
+
+parseComplexBinary :: Parser LispVal
+parseComplexBinary = parseComplexHelper parseBinary parseFloatBinary
+
+parseFloatDecimal :: Parser LispVal
 parseFloatDecimal = parseFloatHelper 10 digit readDec
 
+parseFloatOctal :: Parser LispVal
 parseFloatOctal = parseFloatHelper 8 octDigit readOct
 
+parseFloatBinary :: Parser LispVal
 parseFloatBinary = parseFloatHelper 2 (oneOf "01") readBinary
 
+parseFloatHex :: Parser LispVal
 parseFloatHex = parseFloatHelper 16 hexDigit readHex
 
--- parseOctalFloat :: Parser LispVal
--- parseOctalFloat = Float . fst . head . readOct <$> many1 octDigit
--- parseHexFloat :: Parser LispVal
--- parseHexFloat = Float . fst . head . readHex <$> many1 hexDigit
--- parseBinaryFloat :: Parser LispVal
--- parseBinaryFloat = do
---   ns <- many1 (oneOf "01")
---   char '.'
---   ms <- many1 (oneOf "01")
---   let n = readBinary ns
---       m = readBinary ms
---       e = floor (logBase 10 m)
---   Float $ (n + (m / e))
---   Number . fromJust . readBinary <$> many1 (oneOf "01")
 readBinary :: ReadS Integer
 readBinary = readInt 2 (`elem` "01") digitToInt
 
 parseExpr :: Parser LispVal
-parseExpr = parseNumber <|> parseAtom <|> parseString <|> parseCharacter
+parseExpr =
+  parseComplex <|> parseRational <|> parseFloat <|> parseNumber <|> parseAtom <|>
+  parseString <|>
+  parseCharacter
