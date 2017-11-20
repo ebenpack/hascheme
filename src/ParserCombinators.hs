@@ -74,6 +74,39 @@ p <|> q =
       Left _ -> parse q inp
       Right [(v, out)] -> Right [(v, out)]
 
+many' :: Parser a -> Parser [a]
+many' p = many1 p <|> return []
+
+many1 :: Parser a -> Parser [a]
+many1 p = do
+  v <- p
+  vs <- many' p
+  return (v : vs)
+
+skipMany :: Parser a -> Parser ()
+skipMany p = do
+  many' p
+  return ()
+
+skipMany1 :: Parser a -> Parser ()
+skipMany1 p = do
+  many1 p
+  return ()
+
+oneOf :: String -> Parser Char
+oneOf [] = failure
+oneOf (x:xs) = do
+  y <- char x <|> oneOf xs
+  return y
+
+noneOf :: String -> Parser Char
+noneOf [] = item
+noneOf (x:xs) = do
+  y <- notChar x
+  return y
+  where
+    notChar c = rej (== c)
+
 sat :: (Char -> Bool) -> Parser Char
 sat p = do
   x <- item
@@ -121,36 +154,3 @@ string (x:xs) = do
   char x
   string xs
   return (x : xs)
-
-many' :: Parser a -> Parser [a]
-many' p = many1 p <|> return []
-
-many1 :: Parser a -> Parser [a]
-many1 p = do
-  v <- p
-  vs <- many' p
-  return (v : vs)
-
-skipMany :: Parser a -> Parser ()
-skipMany p = do
-  many' p
-  return ()
-
-skipMany1 :: Parser a -> Parser ()
-skipMany1 p = do
-  many1 p
-  return ()
-
-oneOf :: String -> Parser Char
-oneOf [] = failure
-oneOf (x:xs) = do
-  y <- char x <|> oneOf xs
-  return y
-
-noneOf :: String -> Parser Char
-noneOf [] = item
-noneOf (x:xs) = do
-  y <- notChar x
-  return y
-  where
-    notChar c = rej (== c)
