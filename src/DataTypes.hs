@@ -15,4 +15,4 @@ data LispVal
   | String String
   | Character Char
   | Bool Bool
-  deriving (Show)
+  deriving (Show, Eq)

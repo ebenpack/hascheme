@@ -18,14 +18,18 @@ spec = do
     describe "failure" $ do
       it "should return a ParseError" $
         property $ \x ->
-          (parse failure x) ==
-          ((Left (ParseError "Error")) :: ParseResult String)
+          let result = (parse failure x)
+          in result ==
+             case x of
+               [] -> (Left (ParseError "Error", []) :: ParseResult String)
+               (x:xs) -> (Left (ParseError "Error", xs) :: ParseResult String)
     describe "item" $ do
       it "should take a single char" $
         property $ \x ->
           let result = parse item x
           in case x of
-               [] -> result == ((Left (ParseError "Error")) :: ParseResult Char)
+               [] ->
+                 result == (Left (ParseError "Error", []) :: ParseResult Char)
                (y:ys) -> result == (Right [(y, ys)] :: ParseResult Char)
     describe "(<|>)" $ do
       it "should accept the first argument that succeeds, and otherwise" $
@@ -35,7 +39,7 @@ spec = do
           in case x of
                [] ->
                  result1 == result2 &&
-                 result1 == ((Left (ParseError "Error")) :: ParseResult Char)
+                 result1 == (Left (ParseError "Error", []) :: ParseResult Char)
                (y:ys) ->
                  result1 == result2 &&
                  result1 == (Right [(y, ys)] :: ParseResult Char)

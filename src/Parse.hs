@@ -8,8 +8,9 @@ import Data.Ratio
 import DataTypes (LispVal(..))
 import Numeric (readDec, readHex, readInt, readOct)
 import ParserCombinators
-       (Parser, (<|>), alphanum, char, digit, hexDigit, letter, many',
-        many1, noneOf, octDigit, oneOf, parse, skipMany1, space, string)
+       (Parser, (<|>), alphanum, char, digit, endBy, hexDigit, letter,
+        many', many1, noneOf, octDigit, oneOf, parse, sepBy, skipMany1,
+        space, string, try)
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
@@ -17,6 +18,7 @@ symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
 spaces :: Parser ()
 spaces = skipMany1 space
 
+-- String
 parseString :: Parser LispVal
 parseString = do
   char '"'
@@ -27,6 +29,7 @@ parseString = do
     escapedChar :: Parser Char
     escapedChar = (char '\\') >> (oneOf "\"nrt\\")
 
+-- Atom
 parseAtom :: Parser LispVal
 parseAtom = do
   first <- letter <|> symbol
@@ -38,6 +41,7 @@ parseAtom = do
       "#f" -> Bool False
       _ -> Atom atom
 
+-- Char
 parseCharacter :: Parser LispVal
 parseCharacter
     -- TODO: Meta-, bucky-bit stuff
@@ -59,6 +63,7 @@ parseCharacter
       "tab" -> Character $ chr 9
       [x] -> Character x
 
+-- Numbers
 parseNumber :: Parser LispVal
 parseNumber =
   parseDecimal <|> do
@@ -196,8 +201,30 @@ parseFloatHex = parseFloatHelper 16 hexDigit readHex
 readBinary :: ReadS Integer
 readBinary = readInt 2 (`elem` "01") digitToInt
 
+-- Lists
+parseList :: Parser LispVal
+parseList = liftM List $ sepBy parseExpr spaces
+
+parseDottedList :: Parser LispVal
+parseDottedList = do
+  head <- endBy parseExpr spaces
+  tail <- char '.' >> spaces >> parseExpr
+  return $ DottedList head tail
+
+parseLists :: Parser LispVal
+parseLists = do
+  char '('
+  x <- try $ parseList <|> parseDottedList
+  char ')'
+  return x
+
+-- Quoted
+parseQuoted :: Parser LispVal
+parseQuoted = do
+  char '\''
+  x <- parseExpr
+  return $ List [Atom "quote", x]
+
 parseExpr :: Parser LispVal
 parseExpr =
-  parseComplex <|> parseRational <|> parseFloat <|> parseNumber <|> parseAtom <|>
-  parseString <|>
-  parseCharacter
+  parseNumber <|> parseAtom <|> parseString <|> parseQuoted <|> parseLists

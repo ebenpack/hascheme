@@ -30,7 +30,7 @@ executable hascheme-exe
 test-suite hascheme-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  other-modules:       Data.ParserCombinatorsSpec
+  other-modules:       Data.ParserCombinatorsSpec, Data.ParseSpec
   main-is:             Spec.hs
   build-depends:       base
                      , hascheme

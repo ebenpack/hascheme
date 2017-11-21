@@ -20,8 +20,11 @@ module ParserCombinators
   , many1
   , skipMany
   , skipMany1
+  , sepBy
+  , endBy
   , oneOf
   , noneOf
+  , try
   , hexDigit
   , octDigit
   ) where
@@ -36,7 +39,7 @@ data ParseError =
   ParseError String
   deriving (Show, Eq)
 
-type ParseResult a = Either ParseError [(a, String)]
+type ParseResult a = Either (ParseError, String) [(a, String)]
 
 newtype Parser a = Parser
   { parse :: String -> ParseResult a
@@ -58,13 +61,17 @@ instance Applicative Parser where
   (<*>) = ap
 
 failure :: Parser a
-failure = Parser $ \_ -> Left (ParseError "Error")
+failure =
+  Parser $ \s ->
+    case s of
+      [] -> Left (ParseError "Error", [])
+      (x:xs) -> Left (ParseError "Error", xs)
 
 item :: Parser Char
 item =
   Parser $ \inp ->
     case inp of
-      [] -> Left (ParseError "Error")
+      [] -> Left (ParseError "Error", [])
       (x:xs) -> Right [(x, xs)]
 
 (<|>) :: Parser a -> Parser a -> Parser a
@@ -107,6 +114,28 @@ noneOf (x:xs) = do
   where
     notChar c = rej (== c)
 
+sepBy :: Parser a -> Parser b -> Parser [a]
+sepBy p sep = do
+  x <- p
+  xs <- many1 (sep >> p)
+  return (x : xs)
+
+endBy :: Parser a -> Parser b -> Parser [a]
+endBy p sep =
+  many' $ do
+    x <- p
+    sep
+    return x
+
+try :: Parser a -> Parser a
+try p =
+  Parser $ \s ->
+    case parse p s of
+      Left (err, _) -> Left (err, s)
+      Right [(a, s1)] -> Right [(a, s1)]
+
+--endBy::
+-- p `sepBy` (symbol ",")
 sat :: (Char -> Bool) -> Parser Char
 sat p = do
   x <- item
