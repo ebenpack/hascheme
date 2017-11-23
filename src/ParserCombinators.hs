@@ -50,7 +50,7 @@ instance Monad Parser where
   p >>= f =
     Parser $ \inp ->
       case parse p inp of
-        Left a -> Left a
+        Left (err, _) -> Left (err, inp)
         Right [(v, out)] -> parse (f v) out
 
 instance Functor Parser where
@@ -60,18 +60,18 @@ instance Applicative Parser where
   pure = return
   (<*>) = ap
 
-failure :: Parser a
-failure =
-  Parser $ \s ->
-    case s of
-      [] -> Left (ParseError "Error", [])
-      (x:xs) -> Left (ParseError "Error", xs)
+failure :: String -> Parser a
+failure s =
+  Parser $ \s1 ->
+    case s1 of
+      [] -> Left (ParseError s, [])
+      (x:xs) -> Left (ParseError s, s1)
 
 item :: Parser Char
 item =
   Parser $ \inp ->
     case inp of
-      [] -> Left (ParseError "Error", [])
+      [] -> Left (ParseError "'Item' run on empty input", [])
       (x:xs) -> Right [(x, xs)]
 
 (<|>) :: Parser a -> Parser a -> Parser a
@@ -101,7 +101,7 @@ skipMany1 p = do
   return ()
 
 oneOf :: String -> Parser Char
-oneOf [] = failure
+oneOf [] = failure "Empty input to 'OneOf'"
 oneOf (x:xs) = do
   y <- char x <|> oneOf xs
   return y
@@ -115,10 +115,11 @@ noneOf (x:xs) = do
     notChar c = rej (== c)
 
 sepBy :: Parser a -> Parser b -> Parser [a]
-sepBy p sep = do
-  x <- p
-  xs <- many1 (sep >> p)
-  return (x : xs)
+sepBy p sep =
+  (do x <- p
+      xs <- many' (sep >> p)
+      return (x : xs)) <|>
+  return []
 
 endBy :: Parser a -> Parser b -> Parser [a]
 endBy p sep =
@@ -134,21 +135,20 @@ try p =
       Left (err, _) -> Left (err, s)
       Right [(a, s1)] -> Right [(a, s1)]
 
---endBy::
--- p `sepBy` (symbol ",")
 sat :: (Char -> Bool) -> Parser Char
-sat p = do
-  x <- item
-  if p x
-    then return x
-    else failure
+sat p =
+  try $ do
+    x <- item
+    if p x
+      then return x
+      else failure $ "Condition not satisfied for: `" ++ [x] ++ "`"
 
 rej :: (Char -> Bool) -> Parser Char
 rej p = do
   x <- item
   if not (p x)
     then return x
-    else failure
+    else failure $ "Rejection condition not satisfied for: `" ++ [x] ++ "`"
 
 digit :: Parser Char
 digit = sat isDigit
