@@ -1,8 +1,9 @@
 module Primitives where
 
+import Control.Monad.Except
 import Data.Complex
 import Data.Ratio
-import DataTypes (LispVal(..), PrimitiveFunc)
+import DataTypes (LispError(..), LispVal(..), PrimitiveFunc)
 import Numbers
 
 primitives :: [(String, PrimitiveFunc)]
@@ -28,10 +29,10 @@ primitives =
 --   , ("quotient", numericBinop quot)
 --   , ("remainder", numericBinop rem)
 car :: PrimitiveFunc
-car [List []] = Bool False --TODO: FIX
-car [List (x:xs)] = x
-car _ = Bool False --TODO: FIX
+car [List []] = throwError $ Default "Unexpected error in car"
+car [List (x:xs)] = return $ x
+car _ = throwError $ Default "Unexpected error in cdr"
 
 cdr :: PrimitiveFunc
-cdr [DottedList _ a] = a
-cdr _ = Bool False --TODO: FIX
+cdr [DottedList _ a] = return a
+cdr _ = throwError $ Default "Unexpected error in +"

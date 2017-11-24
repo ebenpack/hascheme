@@ -1,18 +1,25 @@
 module Eval where
 
-import DataTypes (LispVal(..), PrimitiveFunc)
+import Control.Monad.Except
+import DataTypes
+       (LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
 import Primitives (primitives)
 
-eval :: LispVal -> LispVal
-eval val@(String _) = val
-eval val@(Character _) = val
-eval val@(Number _) = val
-eval val@(Rational _) = val
-eval val@(Float _) = val
-eval val@(Complex _) = val
-eval val@(Bool _) = val
-eval (List [Atom "quote", val]) = val
-eval (List (Atom func:args)) = apply func $ map eval args
+eval :: LispVal -> ThrowsError LispVal
+eval val@(String _) = return val
+eval val@(Character _) = return val
+eval val@(Number _) = return val
+eval val@(Rational _) = return val
+eval val@(Float _) = return val
+eval val@(Complex _) = return val
+eval val@(Bool _) = return val
+eval (List [Atom "quote", val]) = return val
+eval (List (Atom func:args)) = mapM eval args >>= apply func
+eval badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 apply :: String -> PrimitiveFunc
-apply func args = maybe (Bool False) ($ args) $ lookup func primitives
+apply func args =
+  maybe
+    (throwError $ NotFunction "Unrecognized primitive function args" func)
+    ($ args)
+    (lookup func primitives)
