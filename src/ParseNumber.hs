@@ -18,44 +18,60 @@ parseInteger =
   parseDecimal <|> do
     char '#'
     base <- oneOf "bdox"
-    case base of
-      'd' -> parseDecimal
-      'o' -> parseOctal
-      'x' -> parseHex
-      'b' -> parseBinary
+    parseIntegerBase base
+
+parseIntegerBase :: Char -> Parser LispVal
+parseIntegerBase base =
+  case base of
+    'd' -> parseDecimal
+    'o' -> parseOctal
+    'x' -> parseHex
+    'b' -> parseBinary
 
 parseFloat :: Parser LispVal
 parseFloat =
   parseFloatDecimal <|> do
     char '#'
     base <- oneOf "bdox"
-    case base of
-      'd' -> parseFloatDecimal
-      'o' -> parseFloatOctal
-      'x' -> parseFloatHex
-      'b' -> parseFloatBinary
+    parseFloatBase base
+
+parseFloatBase :: Char -> Parser LispVal
+parseFloatBase base =
+  case base of
+    'd' -> parseFloatDecimal
+    'o' -> parseFloatOctal
+    'x' -> parseFloatHex
+    'b' -> parseFloatBinary
 
 parseComplex :: Parser LispVal
 parseComplex =
   parseComplexDecimal <|> do
     char '#'
     base <- oneOf "bdox"
-    case base of
-      'd' -> parseComplexDecimal
-      'o' -> parseComplexOctal
-      'x' -> parseComplexHex
-      'b' -> parseComplexBinary
+    parseComplexBase base
+
+parseComplexBase :: Char -> Parser LispVal
+parseComplexBase base =
+  case base of
+    'd' -> parseComplexDecimal
+    'o' -> parseComplexOctal
+    'x' -> parseComplexHex
+    'b' -> parseComplexBinary
 
 parseRational :: Parser LispVal
 parseRational =
   parseRationalDecimal <|> do
     char '#'
     base <- oneOf "bdox"
-    case base of
-      'd' -> parseRationalDecimal
-      'o' -> parseRationalOctal
-      'x' -> parseRationalHex
-      'b' -> parseRationalBinary
+    parseRationalBase base
+
+parseRationalBase :: Char -> Parser LispVal
+parseRationalBase base =
+  case base of
+    'd' -> parseRationalDecimal
+    'o' -> parseRationalOctal
+    'x' -> parseRationalHex
+    'b' -> parseRationalBinary
 
 parseDecimal :: Parser LispVal
 parseDecimal = Number . fst . head . readDec <$> many1 digit
@@ -91,16 +107,18 @@ parseFloatHelper base p reader = do
                  g = d / (b ** (f + 1))
              in w + g
 
-parseComplexHelper :: Parser LispVal -> Parser LispVal -> Parser LispVal
-parseComplexHelper pn pf = do
-  real <- fmap toDouble (pf <|> pn)
+parseComplexHelper ::
+     Parser LispVal -> Parser LispVal -> Parser LispVal -> Parser LispVal
+parseComplexHelper pn pf pr = do
+  real <- fmap toDouble (pr <|> pf <|> pn)
   char '+'
-  imaginary <- fmap toDouble (pf <|> pn)
+  imaginary <- fmap toDouble (pr <|> pf <|> pn)
   char 'i'
   return $ Complex (real :+ imaginary)
   where
     toDouble (Float x) = x
     toDouble (Number x) = fromIntegral x
+    toDouble (Rational x) = fromRational x
 
 parseRationalHelper :: Parser LispVal -> Parser LispVal
 parseRationalHelper p = do
@@ -124,16 +142,19 @@ parseRationalBinary :: Parser LispVal
 parseRationalBinary = parseRationalHelper parseBinary
 
 parseComplexDecimal :: Parser LispVal
-parseComplexDecimal = parseComplexHelper parseDecimal parseFloatDecimal
+parseComplexDecimal =
+  parseComplexHelper parseDecimal parseFloatDecimal parseRationalDecimal
 
 parseComplexOctal :: Parser LispVal
-parseComplexOctal = parseComplexHelper parseOctal parseFloatOctal
+parseComplexOctal =
+  parseComplexHelper parseOctal parseFloatOctal parseRationalOctal
 
 parseComplexHex :: Parser LispVal
-parseComplexHex = parseComplexHelper parseHex parseFloatHex
+parseComplexHex = parseComplexHelper parseHex parseFloatHex parseRationalHex
 
 parseComplexBinary :: Parser LispVal
-parseComplexBinary = parseComplexHelper parseBinary parseFloatBinary
+parseComplexBinary =
+  parseComplexHelper parseBinary parseFloatBinary parseRationalBinary
 
 parseFloatDecimal :: Parser LispVal
 parseFloatDecimal = parseFloatHelper 10 digit readDec

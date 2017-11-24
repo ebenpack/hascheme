@@ -29,9 +29,11 @@ showVal :: LispVal -> String
 showVal (String contents) = "\"" ++ contents ++ "\""
 showVal (Atom name) = name
 showVal (Number contents) = show contents
-showVal (Rational contents) = show contents
+showVal (Rational contents) =
+  show (numerator contents) ++ "/" ++ show (denominator contents)
 showVal (Float contents) = show contents
-showVal (Complex contents) = show contents
+showVal (Complex contents) =
+  show (realPart contents) ++ "+" ++ show (imagPart contents) ++ "i"
 showVal (Character contents) = show contents
 showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"
