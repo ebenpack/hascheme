@@ -4,8 +4,11 @@ import Control.Monad.Except
 import Data.IORef
 import DataTypes
        (Arity(..), Env, IOThrowsError, LispError(..), LispVal(..),
-        PrimitiveFunc, ThrowsError, showVal)
+        PrimitiveFunc, ThrowsError, extractValue, showVal, trapError)
+import Parse
+import ParserCombinators
 import Primitives (eqv, primitives)
+import System.IO
 
 evalList :: Env -> [LispVal] -> IOThrowsError LispVal
 evalList env [] = return Void
@@ -80,6 +83,8 @@ eval env (List (Atom "lambda":DottedList params varargs:body)) =
   makeVarArgs varargs env params body
 eval env (List (Atom "lambda":varargs@(Atom _):body)) =
   makeVarArgs varargs env [] body
+eval env (List [Atom "load", String filename]) =
+  load filename >>= liftM last . mapM (eval env)
 eval env (List (function:args)) = do
   func <- eval env function
   argVals <- mapM (eval env) args
@@ -164,6 +169,95 @@ nullEnv = newIORef []
 
 primitiveBindings :: IO Env -- TODO: Move. Here for now just to prevent circular dependency
 primitiveBindings =
-  nullEnv >>= (flip bindVars $ map makePrimitiveFunc primitives)
+  nullEnv >>=
+  (flip bindVars $
+   map (makeFunc IOFunc) ioPrimitives ++ map (makeFunc PrimitiveFunc) primitives)
   where
-    makePrimitiveFunc (var, func) = (var, PrimitiveFunc func)
+    makeFunc constructor (var, func) = (var, constructor func)
+
+ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
+ioPrimitives =
+  [ ("apply", applyProc)
+  , ("open-input-file", makePort ReadMode)
+  , ("open-output-file", makePort WriteMode)
+  , ("close-input-port", closePort)
+  , ("close-output-port", closePort)
+  , ("read", readProc)
+  , ("write", writeProc)
+  , ("read-contents", readContents)
+  , ("read-all", readAll)
+  ]
+
+applyProc :: [LispVal] -> IOThrowsError LispVal
+applyProc [func, List args] = apply func args
+applyProc (func:args) = apply func args
+
+makePort :: IOMode -> [LispVal] -> IOThrowsError LispVal
+makePort mode [String filename] = liftM Port $ liftIO $ openFile filename mode
+
+closePort :: [LispVal] -> IOThrowsError LispVal
+closePort [Port port] = liftIO $ hClose port >> (return $ Bool True)
+closePort _ = return $ Bool False
+
+readProc :: [LispVal] -> IOThrowsError LispVal
+readProc [] = readProc [Port stdin]
+readProc [Port port] = (liftIO $ hGetLine port) >>= liftThrows . readExpr
+
+writeProc :: [LispVal] -> IOThrowsError LispVal
+writeProc [obj] = writeProc [obj, Port stdout]
+writeProc [obj, Port port] = liftIO $ hPrint port obj >> (return $ Bool True)
+
+readContents :: [LispVal] -> IOThrowsError LispVal
+readContents [String filename] = liftM String $ liftIO $ readFile filename
+
+load :: String -> IOThrowsError [LispVal]
+load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
+
+readAll :: [LispVal] -> IOThrowsError LispVal
+readAll [String filename] = liftM List $ load filename
+
+flushStr :: String -> IO ()
+flushStr str = putStr str >> hFlush stdout
+
+readOrThrow :: Parser a -> String -> ThrowsError a
+readOrThrow parser input =
+  case parse parser input of
+    Left (err, _) -> throwError $ DataTypes.Parser err
+    Right [(val, _)] -> return val
+
+readExpr = readOrThrow parseExpr
+
+readExprList = readOrThrow (sepBy parseExpr spaces)
+
+readPrompt :: String -> IO String
+readPrompt prompt = flushStr prompt >> getLine
+
+evalAndPrint :: Env -> String -> IO ()
+evalAndPrint env expr = evalString env expr >>= putStrLn
+
+evalString :: Env -> String -> IO String
+evalString env expr =
+  runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
+
+until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
+until_ pred prompt action = do
+  result <- prompt
+  if pred result
+    then return ()
+    else action result >> until_ pred prompt action
+
+runOne :: [String] -> IO ()
+runOne args = do
+  env <-
+    primitiveBindings >>=
+    flip bindVars [("args", List $ map String $ drop 1 args)]
+  (runIOThrows $ liftM show $ eval env (List [Atom "load", String (args !! 0)])) >>=
+    hPutStrLn stderr
+
+runRepl :: IO ()
+runRepl =
+  primitiveBindings >>=
+  until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
+
+runIOThrows :: IOThrowsError String -> IO String
+runIOThrows action = runExceptT (trapError action) >>= return . extractValue

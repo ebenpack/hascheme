@@ -24,12 +24,21 @@ spaces = skipMany1 space
 parseString :: Parser LispVal
 parseString = do
   char '"'
-  x <- many' (escapedChar <|> noneOf "\"")
+  x <- many' (escapedChar <|> noneOf "\"\\")
   char '"'
   return $ String x
   where
     escapedChar :: Parser Char
-    escapedChar = (char '\\') >> (oneOf "\"nrt\\")
+    escapedChar = do
+      char '\\'
+      x <- oneOf "\\\"nrt"
+      return $
+        case x of
+          '\\' -> x
+          '"' -> x
+          'n' -> '\n'
+          'r' -> '\r'
+          't' -> '\t'
 
 -- Atom
 parseAtom :: Parser LispVal

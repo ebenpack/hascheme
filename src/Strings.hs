@@ -28,6 +28,12 @@ strLen [String s] = return $ Number $ fromIntegral $ length s
 strLen (_:_) = throwError $ Default "Invalid arguments to `string-length`"
 strLen _ = throwError $ Default "Invalid arguments to `string-length`"
 
+strAppend :: PrimitiveFunc
+strAppend [] = return $ String ""
+strAppend [s@(String _)] = return s
+strAppend ((String s1):(String s2):xs) = strAppend (String (s1 ++ s2) : xs)
+strAppend _ = throwError $ Default "Invalid arguments to `string-append`"
+
 strPrimitives :: [(String, PrimitiveFunc)]
 strPrimitives =
   [ ("string=?", strBoolBinop (==))
@@ -38,4 +44,5 @@ strPrimitives =
   , ("string?", isString)
   , ("make-string", makeString)
   , ("string-length", strLen)
+  , ("string-append", strAppend)
   ]
