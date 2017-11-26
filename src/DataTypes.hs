@@ -2,8 +2,14 @@ module DataTypes where
 
 import Control.Monad.Except
 import Data.Complex
+import Data.IORef
 import Data.Ratio
+import GHC.IO.Handle
 import ParserCombinators (ParseError)
+
+type Env = IORef [(String, IORef LispVal)]
+
+type IOThrowsError = ExceptT LispError IO
 
 type PrimitiveFunc = ([LispVal] -> ThrowsError LispVal)
 
@@ -39,7 +45,14 @@ data LispVal
   | String String
   | Character Char
   | Bool Bool
+  | IOFunc ([LispVal] -> IOThrowsError LispVal)
+  | Port Handle
   | PrimitiveFunc PrimitiveFunc
+  | Func { params :: [String]
+         , vararg :: (Maybe String)
+         , body :: [LispVal]
+         , closure :: Env }
+  | Void
 
 instance Show LispVal where
   show = showVal
@@ -67,8 +80,20 @@ showVal (Bool False) = "#f"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList head tail) =
   "(" ++ unwordsList head ++ " . " ++ showVal tail ++ ")"
+showVal (PrimitiveFunc _) = "<primitive>"
+showVal (Func {params = args, vararg = varargs, body = body, closure = env}) =
+  "(lambda (" ++
+  unwords (map show args) ++
+  (case varargs of
+     Nothing -> ""
+     Just arg -> " . " ++ arg) ++
+  ") ...)"
+showVal (Port _) = "<IO port>"
+showVal (IOFunc _) = "<IO primitive>"
+showVal Void = ""
 
 showError :: LispError -> String
+showError (Default message) = message
 showError (UnboundVar message varname) = message ++ ": " ++ varname
 showError (BadSpecialForm message form) = message ++ ": " ++ show form
 showError (NotFunction message func) = message ++ ": " ++ show func

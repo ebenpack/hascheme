@@ -11,7 +11,8 @@ import Numeric (readDec, readHex, readInt, readOct)
 import ParseNumber (parseNumber)
 import ParserCombinators
        (Parser, (<|>), alphanum, char, digit, endBy, letter, many', many1,
-        noneOf, oneOf, parse, sepBy, skipMany1, space, string, try)
+        noneOf, oneOf, parse, sepBy, skipMany, skipMany1, space, string,
+        try)
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
@@ -76,11 +77,18 @@ parseDottedList = do
   return $ DottedList h t
 
 parseLists :: Parser LispVal
-parseLists = do
-  char '('
-  x <- parseDottedList <|> parseList
-  char ')'
-  return x
+parseLists = roundBracketList <|> squareBracketList
+  where
+    roundBracketList = do
+      char '('
+      x <- parseDottedList <|> parseList
+      char ')'
+      return x
+    squareBracketList = do
+      char '['
+      x <- parseDottedList <|> parseList
+      char ']'
+      return x
 
 -- Quoted
 parseQuoted :: Parser LispVal
@@ -108,7 +116,23 @@ parseUnquoteSplicing = do
   x <- parseExpr
   return $ List [Atom "unquote-splicing", x]
 
--- Vector
+parseComment :: Parser LispVal
+parseComment = parseLineComment <|> parseBlockComment -- TOD: Fix
+
+parseLineComment :: Parser LispVal
+parseLineComment = do
+  char ';'
+  skipMany $ noneOf "\\n"
+  return Void -- TODO: This seems wrong
+
+parseBlockComment :: Parser LispVal
+parseBlockComment = do
+  string "#|"
+  (skipMany $ noneOf "|" >> noneOf "#") -- <|> parseBlockComment
+  string "|#"
+  return Void -- TODO: This seems wrong
+
+-- TODO: Vector
 parseExpr :: Parser LispVal
 parseExpr =
   parseNumber <|> parseCharacter <|> parseAtom <|> parseString <|> parseQuoted <|>

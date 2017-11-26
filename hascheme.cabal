@@ -15,7 +15,16 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     ParserCombinators, Parse, DataTypes, ParseNumber, Eval, Primitives, Numbers
+  exposed-modules:     ParserCombinators
+                     , Parse
+                     , DataTypes
+                     , ParseNumber
+                     , Eval
+                     , Primitives
+                     , Numbers
+                     , Strings
+                     , Util
+                     , Lists
   build-depends:       base >= 4.7 && < 5
                      , mtl
   default-language:    Haskell2010
@@ -32,7 +41,8 @@ executable hascheme-exe
 test-suite hascheme-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  other-modules:       Data.ParserCombinatorsSpec, Data.ParseSpec
+  other-modules:       Data.ParserCombinatorsSpec
+                     , Data.ParseSpec
   main-is:             Spec.hs
   build-depends:       base
                      , hascheme

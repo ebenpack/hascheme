@@ -22,7 +22,7 @@ numAdd a = foldlM (\b c -> doAdd =<< (numCast [b, c])) (Number 0) a
     doAdd (List [Number c, Number d]) = return $ Number (c + d)
     doAdd (List [Rational c, Rational d]) = return $ Rational (c + d)
     doAdd (List [Float c, Float d]) = return $ Float (c + d)
-    doAdd (List [Complex c, Complex d]) = return $ Complex (c + d)
+    doAdd (List [Complex (c), Complex (d)]) = return $ Complex (c + d)
     doAdd _ = throwError $ Default "Unexpected error in +"
 
 numSub :: PrimitiveFunc
@@ -70,7 +70,6 @@ numMod a = foldl1M (\b c -> doMod =<< (numCast [b, c])) a -- TODO Arity check
     doMod (List [Complex c, Complex d]) = return $ Complex c -- TODO check if integer-ish, throw error
     doMod _ = throwError $ Default "Unexpected error in modulo"
 
---  (a -> a -> a) -> t a -> a
 isInteger :: PrimitiveFunc
 isInteger [Number _] = return $ Bool True
 isInteger [_] = return $ Bool False
@@ -90,27 +89,6 @@ isComplex a = isReal a
 
 isNumber :: PrimitiveFunc
 isNumber = isComplex
-
-isBoolean :: PrimitiveFunc
-isBoolean [Bool _] = return $ Bool True
-isBoolean _ = return $ Bool False
-
-isString :: PrimitiveFunc
-isString [String _] = return $ Bool True
-isString _ = return $ Bool False
-
-isSymbol :: PrimitiveFunc
-isSymbol [Atom _] = return $ Bool True
-isSymbol _ = return $ Bool False
-
-isChar :: PrimitiveFunc
-isChar [Character _] = return $ Bool False
-isChar _ = return $ Bool False
-
-isPair :: PrimitiveFunc
-isPair [List _] = return $ Bool True
-isPair [DottedList _ _] = return $ Bool True
-isPair _ = return $ Bool False
 
 numCast :: [LispVal] -> ThrowsError LispVal
 numCast [a@(Number _), b@(Number _)] = return $ List [a, b]
@@ -148,3 +126,123 @@ numCast [a, b] =
     doThrowError :: LispVal -> ThrowsError LispVal
     doThrowError num = throwError $ TypeMismatch "number" num
 numCast _ = throwError $ Default "Unexpected error in numCast"
+
+numBoolBinop ::
+     (LispVal -> LispVal -> ThrowsError LispVal)
+  -> LispVal
+  -> [LispVal]
+  -> ThrowsError LispVal
+numBoolBinop op b (c:d) = do
+  List [b', c'] <- numCast [b, c]
+  result <- op b' c'
+  case result of
+    Bool True -> numBoolBinop op c' d
+    Bool False -> return $ Bool False
+numBoolBinop _ _ _ = return $ Bool True
+
+numBoolBinopEq [] = throwError $ NumArgs (Min 1) 0 []
+numBoolBinopEq (x:xs) = numBoolBinop fn x xs
+  where
+    fn :: LispVal -> LispVal -> ThrowsError LispVal
+    fn (Number c) (Number d) = return $ Bool (c == d)
+    fn (Rational c) (Rational d) = return $ Bool (c == d)
+    fn (Float c) (Float d) = return $ Bool (c == d)
+    fn (Complex c) (Complex d) = return $ Bool (c == d)
+    fn _ _ = throwError $ Default "Unexpected error in ="
+
+numBoolBinopNeq [] = throwError $ NumArgs (Min 1) 0 []
+numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
+  where
+    fn :: LispVal -> LispVal -> ThrowsError LispVal
+    fn (Number c) (Number d) = return $ Bool (c /= d)
+    fn (Rational c) (Rational d) = return $ Bool (c /= d)
+    fn (Float c) (Float d) = return $ Bool (c /= d)
+    fn (Complex c) (Complex d) = return $ Bool (c /= d)
+    fn _ _ = throwError $ Default "Unexpected error in /="
+
+numBoolBinopLt [] = throwError $ NumArgs (Min 1) 0 []
+numBoolBinopLt (x:xs) = numBoolBinop fn x xs
+  where
+    fn :: LispVal -> LispVal -> ThrowsError LispVal
+    fn (Number c) (Number d) = return $ Bool (c < d)
+    fn (Rational c) (Rational d) = return $ Bool (c < d)
+    fn (Float c) (Float d) = return $ Bool (c < d)
+    fn (Complex c) (Complex d) =
+      throwError $ Default "< not defined for complex numbers"
+    fn _ _ = throwError $ Default "Unexpected error in <"
+
+numBoolBinopLte [] = throwError $ NumArgs (Min 1) 0 []
+numBoolBinopLte (x:xs) = numBoolBinop fn x xs
+  where
+    fn :: LispVal -> LispVal -> ThrowsError LispVal
+    fn (Number c) (Number d) = return $ Bool (c <= d)
+    fn (Rational c) (Rational d) = return $ Bool (c <= d)
+    fn (Float c) (Float d) = return $ Bool (c <= d)
+    fn (Complex c) (Complex d) =
+      throwError $ Default "<= not defined for complex numbers"
+    fn _ _ = throwError $ Default "Unexpected error in <="
+
+numBoolBinopGt [] = throwError $ NumArgs (Min 1) 0 []
+numBoolBinopGt (x:xs) = numBoolBinop fn x xs
+  where
+    fn :: LispVal -> LispVal -> ThrowsError LispVal
+    fn (Number c) (Number d) = return $ Bool (c > d)
+    fn (Rational c) (Rational d) = return $ Bool (c > d)
+    fn (Float c) (Float d) = return $ Bool (c > d)
+    fn (Complex c) (Complex d) =
+      throwError $ Default "> not defined for complex numbers"
+    fn _ _ = throwError $ Default "Unexpected error in >"
+
+numBoolBinopGte [] = throwError $ NumArgs (Min 1) 0 []
+numBoolBinopGte (x:xs) = numBoolBinop fn x xs
+  where
+    fn :: LispVal -> LispVal -> ThrowsError LispVal
+    fn (Number c) (Number d) = return $ Bool (c >= d)
+    fn (Rational c) (Rational d) = return $ Bool (c >= d)
+    fn (Float c) (Float d) = return $ Bool (c >= d)
+    fn (Complex c) (Complex d) =
+      throwError $ Default ">= not defined for complex numbers"
+    fn _ _ = throwError $ Default "Unexpected error in >="
+
+--   , numBoolBinop "=" (==)
+numQuotient :: PrimitiveFunc
+numQuotient args =
+  if length args /= 2
+    then throwError $ NumArgs (MinMax 2 2) (length args) args
+    else do
+      nums <- numCast args
+      case nums of
+        List [Number a, Number b] -> return $ Number (a `quot` b)
+        _ -> throwError $ Default "Unexpected error in <=" -- TODO better errors
+
+numRemainder :: PrimitiveFunc
+numRemainder args =
+  if length args /= 2
+    then throwError $ NumArgs (MinMax 2 2) (length args) args
+    else do
+      nums <- numCast args
+      case nums of
+        List [Number a, Number b] -> return $ Number (a `rem` b)
+        _ -> throwError $ Default "Unexpected error in <=" -- TODO better errors
+
+numPrimitives :: [(String, PrimitiveFunc)]
+numPrimitives =
+  [ ("+", numAdd)
+  , ("-", numSub)
+  , ("*", numMul)
+  , ("/", numDiv)
+  , ("modulo", numMod)
+  , ("number?", isNumber)
+  , ("complex?", isComplex)
+  , ("real?", isReal)
+  , ("rational?", isRational)
+  , ("integer?", isInteger)
+  , ("=", numBoolBinopEq)
+  , ("/=", numBoolBinopNeq)
+  , (">", numBoolBinopGt)
+  , ("<", numBoolBinopLt)
+  , (">=", numBoolBinopGte)
+  , ("<=", numBoolBinopLte)
+  , ("quotient", numQuotient)
+  , ("remainer", numRemainder)
+  ]
