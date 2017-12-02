@@ -86,18 +86,13 @@ parseDottedList = do
   return $ DottedList h t
 
 parseLists :: Parser LispVal
-parseLists = roundBracketList <|> squareBracketList
-  where
-    roundBracketList = do
-      char '('
-      x <- parseDottedList <|> parseList
-      char ')'
-      return x
-    squareBracketList = do
-      char '['
-      x <- parseDottedList <|> parseList
-      char ']'
-      return x
+parseLists = do
+  open <- char '(' <|> char '['
+  x <- parseDottedList <|> parseList
+  if open == '('
+    then char ')'
+    else char ']'
+  return x
 
 -- Quoted
 parseQuoted :: Parser LispVal
