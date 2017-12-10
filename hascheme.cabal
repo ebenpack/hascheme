@@ -12,6 +12,7 @@ category:            Web
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
+data-files:          lib/*.scm
 
 library
   hs-source-dirs:      src
@@ -25,6 +26,7 @@ library
                      , Strings
                      , Util
                      , Lists
+  other-modules:     Paths_hascheme
   build-depends:       base >= 4.7 && < 5
                      , mtl
   default-language:    Haskell2010

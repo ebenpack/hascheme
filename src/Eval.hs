@@ -7,6 +7,7 @@ import DataTypes
         PrimitiveFunc, ThrowsError, extractValue, showVal, trapError)
 import Parse
 import ParserCombinators
+import Paths_hascheme (getDataFileName)
 import Primitives (eqv, primitives)
 import System.IO
 
@@ -175,6 +176,12 @@ primitiveBindings =
   where
     makeFunc' constructor (var, func) = (var, constructor func)
 
+loadStdLib :: Env -> IO Env
+loadStdLib env = do
+  filename <- liftIO $ getDataFileName "lib/stdlib.scm"
+  _ <- evalString env $ "(load \"" ++ filename ++ "\")"
+  return env
+
 ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
 ioPrimitives =
   [ ("apply", applyProc)
@@ -253,13 +260,14 @@ runOne args = do
   env <-
     primitiveBindings >>=
     flip bindVars [("args", List $ map String $ drop 1 args)]
+  _ <- loadStdLib env
   (runIOThrows $ liftM show $ eval env (List [Atom "load", String (args !! 0)])) >>=
     hPutStrLn stderr
 
 runRepl :: IO ()
-runRepl =
-  primitiveBindings >>=
-  until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
+runRepl = do
+  env <- primitiveBindings
+  loadStdLib env >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
 
 runIOThrows :: IOThrowsError String -> IO String
 runIOThrows action = runExceptT (trapError action) >>= return . extractValue
