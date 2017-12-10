@@ -76,13 +76,19 @@ parseCharacter
 
 -- Lists
 parseList :: Parser LispVal
-parseList = liftM List $ sepBy parseExpr spaces
+parseList = do
+  skipMany spaces
+  list <- sepBy parseExpr spaces
+  skipMany spaces
+  return $ List list
 
 parseDottedList :: Parser LispVal
 parseDottedList = do
+  skipMany spaces
   h <- endBy parseExpr spaces
   _ <- char '.' >> spaces
   t <- parseExpr
+  skipMany spaces
   return $ DottedList h t
 
 parseLists :: Parser LispVal
