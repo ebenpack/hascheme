@@ -85,8 +85,10 @@ eval env (List (Atom "lambda":DottedList params' varargs:body')) =
   makeVarArgs varargs env params' body'
 eval env (List (Atom "lambda":varargs@(Atom _):body')) =
   makeVarArgs varargs env [] body'
-eval env (List [Atom "load", String filename]) =
-  load filename >>= liftM last . mapM (eval env)
+eval env (List [Atom "load", String filename]) = do
+  f <- load filename
+  mapM (eval env) f
+  return Void
 eval env (List [Atom "load-print", String filename]) =
   load filename >>= liftM List . mapM (eval env)
 eval env (List (function:args)) = do
