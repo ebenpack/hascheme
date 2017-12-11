@@ -10,15 +10,12 @@ import DataTypes (LispVal(..))
 import Numeric (readDec, readHex, readInt, readOct)
 import ParseNumber (parseNumber)
 import ParserCombinators
-       (Parser, (<|>), alphanum, char, digit, endBy, letter, many', many1,
-        noneOf, oneOf, parse, sepBy, skipMany, skipMany1, space, string,
-        try)
+       (Parser, (<|>), alphanum, char, digit, endBy, item, letter, many',
+        many1, noneOf, oneOf, parse, sepBy, skipMany, skipMany1, skipUntil,
+        spaces, string, try)
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
-
-spaces :: Parser ()
-spaces = skipMany1 space
 
 -- String
 parseString :: Parser LispVal
@@ -127,23 +124,28 @@ parseUnquoteSplicing = do
   return $ List [Atom "unquote-splicing", x]
 
 parseComment :: Parser LispVal
-parseComment = parseLineComment <|> parseBlockComment -- TOD: Fix
+parseComment = parseLineComment <|> parseBlockComment -- TODO: Fix
 
 parseLineComment :: Parser LispVal
 parseLineComment = do
   char ';'
-  skipMany $ noneOf "\\n"
+  skipUntil (char '\n') item
   return Void -- TODO: This seems wrong
 
 parseBlockComment :: Parser LispVal
 parseBlockComment = do
   string "#|"
-  (skipMany $ noneOf "|" >> noneOf "#") -- <|> parseBlockComment
-  string "|#"
-  return Void -- TODO: This seems wrong
+  skipUntil (string "|#") (parseBlockComment <|> takeAnything)
+  return Void
+  where
+    takeAnything = do
+      item
+      return Void
 
+--   string "|#"
 -- TODO: Vector
 parseExpr :: Parser LispVal
 parseExpr =
-  parseNumber <|> parseCharacter <|> parseAtom <|> parseString <|> parseQuoted <|>
+  parseComment <|> parseNumber <|> parseCharacter <|> parseAtom <|> parseString <|>
+  parseQuoted <|>
   parseLists

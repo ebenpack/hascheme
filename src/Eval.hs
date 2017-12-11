@@ -19,6 +19,7 @@ evalList env (y:ys) = do
   evalList env ys
 
 eval :: Env -> LispVal -> IOThrowsError LispVal
+eval _ val@(Void) = return val
 eval _ val@(String _) = return val
 eval _ val@(Character _) = return val
 eval _ val@(Number _) = return val
@@ -86,6 +87,8 @@ eval env (List (Atom "lambda":varargs@(Atom _):body')) =
   makeVarArgs varargs env [] body'
 eval env (List [Atom "load", String filename]) =
   load filename >>= liftM last . mapM (eval env)
+eval env (List [Atom "load-print", String filename]) =
+  load filename >>= liftM List . mapM (eval env)
 eval env (List (function:args)) = do
   func <- eval env function
   argVals <- mapM (eval env) args
@@ -236,7 +239,7 @@ readExpr :: String -> ThrowsError LispVal
 readExpr = readOrThrow parseExpr
 
 readExprList :: String -> ThrowsError [LispVal]
-readExprList = readOrThrow (sepBy parseExpr spaces)
+readExprList = readOrThrow (endBy parseExpr (skipMany space))
 
 readPrompt :: String -> IO String
 readPrompt prompt = flushStr prompt >> getLine
@@ -261,8 +264,21 @@ runOne args = do
     primitiveBindings >>=
     flip bindVars [("args", List $ map String $ drop 1 args)]
   _ <- loadStdLib env
-  (runIOThrows $ liftM show $ eval env (List [Atom "load", String (args !! 0)])) >>=
-    hPutStrLn stderr
+  result <-
+    (runIOThrows $
+     liftM show' $ eval env (List [Atom "load-print", String (args !! 0)]))
+  putStrLn result
+  where
+    show' :: LispVal -> String
+    show' (List contents) = unwordsList' contents
+    unwordsList' :: [LispVal] -> String
+    unwordsList' = unlines . map showValNewline . filter nonVoid
+    showValNewline :: LispVal -> String
+    showValNewline Void = ""
+    showValNewline v = showVal v
+    nonVoid :: LispVal -> Bool
+    nonVoid Void = False
+    nonVoid _ = True
 
 runRepl :: IO ()
 runRepl = do

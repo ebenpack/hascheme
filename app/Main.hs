@@ -5,8 +5,8 @@ import DataTypes
        (Env, IOThrowsError, LispError(..), LispVal(..), ThrowsError,
         extractValue, trapError)
 import Eval (eval, liftThrows, primitiveBindings, runOne, runRepl)
-import Parse (parseExpr, spaces)
-import qualified ParserCombinators (Parser, endBy, parse)
+import Parse (parseExpr)
+import qualified ParserCombinators (Parser, endBy, parse, spaces)
 import System.Environment
 import System.IO
 

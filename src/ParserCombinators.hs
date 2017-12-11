@@ -14,12 +14,14 @@ module ParserCombinators
   , letter
   , alphanum
   , space
+  , spaces
   , char
   , string
   , many'
   , many1
   , skipMany
   , skipMany1
+  , skipUntil
   , sepBy
   , endBy
   , oneOf
@@ -100,6 +102,18 @@ skipMany1 p = do
   many1 p
   return ()
 
+skipUntil :: Parser t -> Parser a -> Parser ()
+skipUntil end p = do
+  scan
+  where
+    scan =
+      do end
+         return ()
+     <|> do
+        p
+        scan
+        return ()
+
 oneOf :: String -> Parser Char
 oneOf [] = failure "Empty input to 'OneOf'"
 oneOf (x:xs) = do
@@ -173,6 +187,9 @@ alphanum = sat isAlphaNum
 
 space :: Parser Char
 space = sat isSpace
+
+spaces :: Parser ()
+spaces = skipMany1 space
 
 char :: Char -> Parser Char
 char x = sat (== x)
