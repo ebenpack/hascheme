@@ -155,7 +155,7 @@ defineVar envRef var value = do
            valueRef <- newIORef value
            env <- readIORef envRef
            writeIORef envRef ((var, valueRef) : env)
-           return value
+           return Void
 
 bindVars :: Env -> [(String, LispVal)] -> IO Env
 bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
@@ -274,13 +274,13 @@ runOne args = do
     show' :: LispVal -> String
     show' (List contents) = unwordsList' contents
     unwordsList' :: [LispVal] -> String
-    unwordsList' = unlines . map showValNewline . filter nonVoid
+    unwordsList' = unlines . map showValNewline . filter printable
     showValNewline :: LispVal -> String
     showValNewline Void = ""
     showValNewline v = showVal v
-    nonVoid :: LispVal -> Bool
-    nonVoid Void = False
-    nonVoid _ = True
+    printable :: LispVal -> Bool
+    printable Void = False
+    printable _ = True
 
 runRepl :: IO ()
 runRepl = do
