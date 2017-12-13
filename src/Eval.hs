@@ -13,7 +13,7 @@ import System.IO
 
 evalList :: Env -> [LispVal] -> IOThrowsError LispVal
 evalList _ [] = return Void
-evalList _ [a] = return a
+evalList env [a] = eval env a
 evalList env (y:ys) = do
   eval env y
   evalList env ys
@@ -40,7 +40,7 @@ eval env (List ((Atom "cond"):xs)) = evalCond xs
     evalCond :: [LispVal] -> IOThrowsError LispVal
     evalCond [] = return Void
     evalCond [List (Atom "else":xs')] = evalList env xs'
-    evalCond [List (Atom "else":_), _] =
+    evalCond (List (Atom "else":_):_) =
       throwError $ Default "cond: bad syntax (`else` clause must be last)"
     evalCond ((List (pred':conseqs)):xs') = do
       result <- eval env pred'
