@@ -76,15 +76,15 @@ eval env (List [Atom "set!", Atom var, form]) = eval env form >>= setVar env var
 eval env (List [Atom "define", Atom var, form]) =
   eval env form >>= defineVar env var
 eval env (List (Atom "define":List (Atom var:params'):body')) =
-  makeNormalFunc env params' body' >>= defineVar env var
+  makeNormalFunc var env params' body' >>= defineVar env var
 eval env (List (Atom "define":DottedList (Atom var:params') varargs:body')) =
-  makeVarArgs varargs env params' body' >>= defineVar env var
+  makeVarArgs var varargs env params' body' >>= defineVar env var
 eval env (List (Atom "lambda":List params':body')) =
-  makeNormalFunc env params' body'
+  makeNormalFunc "λ" env params' body'
 eval env (List (Atom "lambda":DottedList params' varargs:body')) =
-  makeVarArgs varargs env params' body'
+  makeVarArgs "λ" varargs env params' body'
 eval env (List (Atom "lambda":varargs@(Atom _):body')) =
-  makeVarArgs varargs env [] body'
+  makeVarArgs "λ" varargs env [] body'
 eval env (List [Atom "load", String filename]) = do
   f <- load filename
   mapM (eval env) f
@@ -98,8 +98,8 @@ eval env (List (function:args)) = do
 eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
-apply (PrimitiveFunc func) args = liftThrows $ func args
-apply (Func params' varargs body' closure') args =
+apply (PrimitiveFunc _ func) args = liftThrows $ func args
+apply (Func _ params' varargs body' closure') args =
   if num params' /= num args && varargs == Nothing
     then throwError $ NumArgs (Min $ length params') (length args) args
     else (liftIO $ bindVars closure' $ zip params' args) >>= bindVarArgs varargs >>=
@@ -112,18 +112,26 @@ apply (Func params' varargs body' closure') args =
       case arg of
         Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
         Nothing -> return env
-apply (IOFunc func) args = func args
+apply (IOFunc _ func) args = func args
 
 makeFunc ::
-     Monad m => Maybe String -> Env -> [LispVal] -> [LispVal] -> m LispVal
-makeFunc varargs env params' body' =
-  return $ Func (map showVal params') varargs body' env
+     Monad m
+  => String
+  -> Maybe String
+  -> Env
+  -> [LispVal]
+  -> [LispVal]
+  -> m LispVal
+makeFunc name varargs env params' body' =
+  return $ Func name (map showVal params') varargs body' env
 
-makeNormalFunc :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
-makeNormalFunc = makeFunc Nothing
+makeNormalFunc ::
+     String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeNormalFunc name = makeFunc name Nothing
 
-makeVarArgs :: LispVal -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
-makeVarArgs = makeFunc . Just . showVal
+makeVarArgs ::
+     String -> LispVal -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeVarArgs name = (makeFunc name) . Just . showVal
 
 isBound :: Env -> String -> IO Bool
 isBound envRef var =
@@ -179,7 +187,7 @@ primitiveBindings =
    map (makeFunc' IOFunc) ioPrimitives ++
    map (makeFunc' PrimitiveFunc) primitives)
   where
-    makeFunc' constructor (var, func) = (var, constructor func)
+    makeFunc' constructor (var, func) = (var, constructor var func)
 
 loadStdLib :: Env -> IO Env
 loadStdLib env = do

@@ -45,10 +45,13 @@ data LispVal
   | String String
   | Character Char
   | Bool Bool
-  | IOFunc ([LispVal] -> IOThrowsError LispVal)
+  | IOFunc String
+           ([LispVal] -> IOThrowsError LispVal)
   | Port Handle
-  | PrimitiveFunc PrimitiveFunc
-  | Func { params :: [String]
+  | PrimitiveFunc String
+                  PrimitiveFunc
+  | Func { name :: String
+         , params :: [String]
          , vararg :: (Maybe String)
          , body :: [LispVal]
          , closure :: Env }
@@ -79,16 +82,10 @@ showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList h t) = "(" ++ unwordsList h ++ " . " ++ showVal t ++ ")"
-showVal (PrimitiveFunc _) = "<primitive>"
-showVal (Func {params = args, vararg = varargs, body = body', closure = env'}) =
-  "(lambda (" ++
-  unwords (map show args) ++
-  (case varargs of
-     Nothing -> ""
-     Just arg -> " . " ++ arg) ++
-  ") ...)"
+showVal (PrimitiveFunc name _) = "#<procedure:" ++ name ++ ">"
+showVal (Func {name = name}) = "#<procedure:" ++ name ++ ">"
 showVal (Port _) = "<IO port>"
-showVal (IOFunc _) = "<IO primitive>"
+showVal (IOFunc name _) = "#<IO primitive:" ++ name ++ ">"
 showVal Void = ""
 
 showError :: LispError -> String
