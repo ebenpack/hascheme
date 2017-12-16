@@ -76,7 +76,11 @@ showVal (Rational contents) =
   show (numerator contents) ++ "/" ++ show (denominator contents)
 showVal (Float contents) = show contents
 showVal (Complex contents) =
-  show (realPart contents) ++ "+" ++ show (imagPart contents) ++ "i"
+  show (realPart contents) ++
+  (if imagPart contents < 0
+     then ""
+     else "+") ++
+  show (imagPart contents) ++ "i"
 showVal (Character contents) = show contents
 showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"

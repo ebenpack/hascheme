@@ -7,8 +7,8 @@ import DataTypes (LispVal(..))
 
 import Numeric (readDec, readHex, readInt, readOct)
 import ParserCombinators
-       (Parser, (<|>), char, digit, hexDigit, many1, octDigit, oneOf,
-        skipMany1)
+       (Parser(..), (<|>), char, digit, hexDigit, many1, octDigit, oneOf,
+        parse, skipMany1, try)
 
 parseNumber :: Parser LispVal
 parseNumber = parseComplex <|> parseRational <|> parseFloat <|> parseInteger
@@ -73,26 +73,29 @@ parseRationalBase base =
     'x' -> parseRationalHex
     'b' -> parseRationalBinary
 
+parseHelper :: ReadS Integer -> Parser Char -> Parser LispVal
+parseHelper reader parser =
+  (char '-' >> (parseHelper' negate)) <|> (char '+' >> (parseHelper' id)) <|>
+  (parseHelper' id)
+  where
+    parseHelper' :: (Integer -> Integer) -> Parser LispVal
+    parseHelper' op = Number . op . fst . head . reader <$> many1 parser
+
 parseDecimal :: Parser LispVal
-parseDecimal = Number . fst . head . readDec <$> many1 digit
+parseDecimal = parseHelper readDec digit
 
 parseOctal :: Parser LispVal
-parseOctal = Number . fst . head . readOct <$> many1 octDigit
+parseOctal = parseHelper readOct octDigit
 
 parseHex :: Parser LispVal
-parseHex = Number . fst . head . readHex <$> many1 hexDigit
+parseHex = parseHelper readHex hexDigit
 
 parseBinary :: Parser LispVal
-parseBinary = Number . fst . head . readBinary <$> many1 (oneOf "01")
+parseBinary = parseHelper readBinary (oneOf "01")
 
 parseFloatHelper :: Int -> Parser Char -> (ReadS Integer) -> Parser LispVal
-parseFloatHelper base p reader = do
-  w <- many1 p
-  char '.'
-  d <- many1 p
-  let whole = fst . head $ reader w
-      decimal = fst . head $ reader d
-  return $ Float (helper whole decimal)
+parseFloatHelper base p reader =
+  (char '-' >> (parseFloat' negate)) <|> (parseFloat' id)
   where
     helper :: Integer -> Integer -> Double
     helper whole decimal =
@@ -106,12 +109,19 @@ parseFloatHelper base p reader = do
                  f = fromIntegral floored
                  g = d / (b ** (f + 1))
              in w + g
+    parseFloat' :: (Double -> Double) -> Parser LispVal
+    parseFloat' op = do
+      w <- many1 p
+      char '.'
+      d <- many1 p
+      let whole = fst . head $ reader w
+          decimal = fst . head $ reader d
+      return $ Float $ (op (helper whole decimal))
 
 parseComplexHelper ::
      Parser LispVal -> Parser LispVal -> Parser LispVal -> Parser LispVal
 parseComplexHelper pn pf pr = do
   real <- fmap toDouble (pr <|> pf <|> pn)
-  char '+'
   imaginary <- fmap toDouble (pr <|> pf <|> pn)
   char 'i'
   return $ Complex (real :+ imaginary)

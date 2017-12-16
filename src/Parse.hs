@@ -11,7 +11,7 @@ import Numeric (readDec, readHex, readInt, readOct)
 import ParseNumber (parseNumber)
 import ParserCombinators
        (Parser, (<|>), alphanum, char, digit, endBy, item, letter, many',
-        many1, noneOf, oneOf, parse, sepBy, skipMany, skipMany1, skipUntil,
+        many1, noneOf, oneOf, sepBy, skipMany, skipMany1, skipUntil,
         spaces, string, try)
 
 symbol :: Parser Char
