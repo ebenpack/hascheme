@@ -52,23 +52,47 @@ numDiv [] = throwError $ NumArgs (Min 1) 0 []
 numDiv a = foldl1M (\b c -> doDiv =<< (numCast [b, c])) a -- TODO: Zero division error
   where
     doDiv :: LispVal -> ThrowsError LispVal
-    doDiv (List [Number c, Number d]) = return $ Rational (c % d)
-    doDiv (List [Rational c, Rational d]) = return $ Rational (c / d)
-    doDiv (List [Float c, Float d]) = return $ Float (c / d)
-    doDiv (List [Complex c, Complex d]) = return $ Complex (c / d)
+    doDiv (List [Number c, Number d]) =
+      if d == 0
+        then throwError $ Default "Zero division error"
+        else return $ Rational (c % d)
+    doDiv (List [Rational c, Rational d]) =
+      if d == 0
+        then throwError $ Default "Zero division error"
+        else return $ Rational (c / d)
+    doDiv (List [Float c, Float d]) =
+      if d == 0.0
+        then throwError $ Default "Zero division error"
+        else return $ Float (c / d)
+    doDiv (List [Complex c, Complex d]) =
+      if d == 0
+        then throwError $ Default "Zero division error"
+        else return $ Complex (c / d)
     doDiv _ = throwError $ Default "Unexpected error in /"
 
 numMod :: PrimitiveFunc
 numMod [] = throwError $ NumArgs (MinMax 2 2) 0 []
 numMod (a:[]) = throwError $ NumArgs (MinMax 2 2) 1 [a]
-numMod a = foldl1M (\b c -> doMod =<< (numCast [b, c])) a -- TODO Arity check
+numMod [a, b] = do
+  c <- numCast $ [a, b]
+  doMod c
   where
     doMod :: LispVal -> ThrowsError LispVal
     doMod (List [Number c, Number d]) = return $ Number (c `mod` d)
-    doMod (List [Rational c, Rational d]) = return $ Rational c -- TODO check if integer-ish, throw error
-    doMod (List [Float c, Float d]) = return $ Float c -- TODO check if integer-ish, throw error
-    doMod (List [Complex c, Complex d]) = return $ Complex c -- TODO check if integer-ish, throw error
+    doMod (List [c@(Rational _), d@(Rational _)]) = do
+      Number c' <- numToInt c
+      Number d' <- numToInt d
+      return $ Rational ((c' `mod` d') % 1)
+    doMod (List [c@(Float _), d@(Float _)]) = do
+      Number c' <- numToInt c
+      Number d' <- numToInt d
+      return $ Float (fromInteger (c' `mod` d'))
+    doMod (List [c@(Complex _), d@(Complex _)]) = do
+      Number c' <- numToInt c
+      Number d' <- numToInt d
+      return $ Complex (fromInteger (c' `mod` d') :+ 0)
     doMod _ = throwError $ Default "Unexpected error in modulo"
+numMod a = throwError $ NumArgs (MinMax 2 2) (length a) a
 
 isInteger :: PrimitiveFunc
 isInteger [Number _] = return $ Bool True
@@ -89,6 +113,22 @@ isComplex a = isReal a
 
 isNumber :: PrimitiveFunc
 isNumber = isComplex
+
+numToInt :: LispVal -> ThrowsError LispVal
+numToInt a@(Number _) = return a
+numToInt (Rational a) =
+  if denominator a == 1
+    then return $ Number (numerator a)
+    else throwError $ Default "Could not convert rational to integer"
+numToInt (Float a) =
+  if a == fromInteger (round a)
+    then return $ Number (round a)
+    else throwError $ Default "Could not convert float to integer"
+numToInt (Complex a) =
+  let rp = realPart a
+  in if imagPart a == 0 && rp == fromInteger (round rp)
+       then return $ Number (round rp)
+       else throwError $ Default "Could not convert complex to integer"
 
 numCast :: [LispVal] -> ThrowsError LispVal
 numCast [a@(Number _), b@(Number _)] = return $ List [a, b]
@@ -140,6 +180,7 @@ numBoolBinop op b (c:d) = do
     Bool False -> return $ Bool False
 numBoolBinop _ _ _ = return $ Bool True
 
+numBoolBinopEq :: [LispVal] -> Either LispError LispVal
 numBoolBinopEq [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopEq (x:xs) = numBoolBinop fn x xs
   where
@@ -150,6 +191,7 @@ numBoolBinopEq (x:xs) = numBoolBinop fn x xs
     fn (Complex c) (Complex d) = return $ Bool (c == d)
     fn _ _ = throwError $ Default "Unexpected error in ="
 
+numBoolBinopNeq :: [LispVal] -> Either LispError LispVal
 numBoolBinopNeq [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
   where
@@ -160,6 +202,7 @@ numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
     fn (Complex c) (Complex d) = return $ Bool (c /= d)
     fn _ _ = throwError $ Default "Unexpected error in /="
 
+numBoolBinopLt :: [LispVal] -> Either LispError LispVal
 numBoolBinopLt [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopLt (x:xs) = numBoolBinop fn x xs
   where
@@ -171,6 +214,7 @@ numBoolBinopLt (x:xs) = numBoolBinop fn x xs
       throwError $ Default "< not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in <"
 
+numBoolBinopLte :: [LispVal] -> Either LispError LispVal
 numBoolBinopLte [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopLte (x:xs) = numBoolBinop fn x xs
   where
@@ -182,6 +226,7 @@ numBoolBinopLte (x:xs) = numBoolBinop fn x xs
       throwError $ Default "<= not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in <="
 
+numBoolBinopGt :: [LispVal] -> Either LispError LispVal
 numBoolBinopGt [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopGt (x:xs) = numBoolBinop fn x xs
   where
@@ -193,6 +238,7 @@ numBoolBinopGt (x:xs) = numBoolBinop fn x xs
       throwError $ Default "> not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in >"
 
+numBoolBinopGte :: [LispVal] -> Either LispError LispVal
 numBoolBinopGte [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopGte (x:xs) = numBoolBinop fn x xs
   where
@@ -204,7 +250,6 @@ numBoolBinopGte (x:xs) = numBoolBinop fn x xs
       throwError $ Default ">= not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in >="
 
---   , numBoolBinop "=" (==)
 numQuotient :: PrimitiveFunc
 numQuotient args =
   if length args /= 2
