@@ -20,6 +20,8 @@
 
 (define (even? num) (= (modulo num 2) 0))
 
+(define (abs n) (if (< n 0) (- 0 n) n))
+
 (define (foldl fn acc ls)
     (if (empty? ls)
         acc
