@@ -1,18 +1,18 @@
 module Numbers where
 
-import           Control.Monad.Except
-import           Data.Complex
-import           Data.Ratio
-import           DataTypes            (Arity (..), LispError (..), LispVal (..),
-                                       PrimitiveFunc, ThrowsError)
+import Control.Monad.Except
+import Data.Complex
+import Data.Ratio
+import DataTypes
+       (Arity(..), LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
 
 foldlM :: Monad m => (a -> b -> m a) -> a -> [b] -> m a
 foldlM f v (x:xs) = (f v x) >>= \a -> foldlM f a xs
-foldlM _ v []     = return v
+foldlM _ v [] = return v
 
 foldl1M :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldl1M f (x:xs) = foldlM f x xs
-foldl1M _ _      = error "Unexpected error in foldl1M"
+foldl1M _ _ = error "Unexpected error in foldl1M"
 
 numAdd :: PrimitiveFunc
 numAdd [] = return $ Number 1
@@ -120,20 +120,20 @@ numRem a = throwError $ NumArgs (MinMax 2 2) (length a) a
 
 isInteger :: PrimitiveFunc
 isInteger [Number _] = return $ Bool True
-isInteger [_]        = return $ Bool False
-isInteger a          = throwError $ NumArgs (MinMax 1 1) (length a) a
+isInteger [_] = return $ Bool False
+isInteger a = throwError $ NumArgs (MinMax 1 1) (length a) a
 
 isRational :: PrimitiveFunc
 isRational [Rational _] = return $ Bool True
-isRational a            = isInteger a
+isRational a = isInteger a
 
 isReal :: PrimitiveFunc
 isReal [Float _] = return $ Bool True
-isReal a         = isRational a
+isReal a = isRational a
 
 isComplex :: PrimitiveFunc
 isComplex [Complex _] = return $ Bool True
-isComplex a           = isReal a
+isComplex a = isReal a
 
 isNumber :: PrimitiveFunc
 isNumber = isComplex
@@ -181,11 +181,11 @@ numCast [a@(Complex _), (Number b)] =
   return $ List [a, Complex (fromInteger b :+ 0)]
 numCast [a, b] =
   case a of
-    Number _   -> doThrowError b
-    Float _    -> doThrowError b
+    Number _ -> doThrowError b
+    Float _ -> doThrowError b
     Rational _ -> doThrowError b
-    Complex _  -> doThrowError b
-    _          -> doThrowError a
+    Complex _ -> doThrowError b
+    _ -> doThrowError a
   where
     doThrowError :: LispVal -> ThrowsError LispVal
     doThrowError num = throwError $ TypeMismatch "number" num
@@ -200,7 +200,7 @@ numBoolBinop op b (c:d) = do
   List [b', c'] <- numCast [b, c]
   result <- op b' c'
   case result of
-    Bool True  -> numBoolBinop op c' d
+    Bool True -> numBoolBinop op c' d
     Bool False -> return $ Bool False
 numBoolBinop _ _ _ = return $ Bool True
 
