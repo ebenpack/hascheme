@@ -92,11 +92,9 @@ eval env (List [Atom "let", List pairs, body']) = do
   vals' <- mapM (eval env) vals
   env' <-
     liftIO $
-    bindVars env (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals)
-  evalBody env'
+    bindVars env (Prelude.zipWith (\a b -> (extractVar a, b)) atoms' vals')
+  eval env' body'
   where
-    evalBody :: Env -> IOThrowsError LispVal
-    evalBody env = liftM last $ mapM (eval env) [body']
     getHeads :: [LispVal] -> IOThrowsError LispVal
     getHeads [] = return $ List []
     getHeads (List (x:xs):ys) = do
