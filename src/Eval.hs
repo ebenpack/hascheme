@@ -81,10 +81,34 @@ eval env (List (Atom "define":DottedList (Atom var:params') varargs:body')) =
   makeVarArgs var varargs env params' body' >>= defineVar env var
 eval env (List (Atom "lambda":List params':body')) =
   makeNormalFunc "λ" env params' body'
-eval env (List (Atom "lambda":DottedList params' varargs:body')) =
-  makeVarArgs "λ" varargs env params' body'
 eval env (List (Atom "lambda":varargs@(Atom _):body')) =
   makeVarArgs "λ" varargs env [] body'
+eval env (List (Atom "lambda":DottedList params' varargs:body')) =
+  makeVarArgs "λ" varargs env params' body'
+eval env (List [Atom "let", List pairs, body']) = do
+  List atoms <- getHeads pairs
+  atoms' <- mapM ensureAtom atoms
+  List vals <- (getTails pairs)
+  vals' <- mapM (eval env) vals
+  env' <-
+    liftIO $
+    bindVars env (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals)
+  evalBody env'
+  where
+    evalBody :: Env -> IOThrowsError LispVal
+    evalBody env = liftM last $ mapM (eval env) [body']
+    getHeads :: [LispVal] -> IOThrowsError LispVal
+    getHeads [] = return $ List []
+    getHeads (List (x:xs):ys) = do
+      List result <- getHeads ys
+      return $ List (x : result)
+    getHeads _ = throwError $ Default "Unexpected error in let"
+    getTails :: [LispVal] -> IOThrowsError LispVal
+    getTails [] = return $ List []
+    getTails (List [x, xs]:ys) = do
+      List result <- getTails ys
+      return $ List (xs : result)
+    getTails _ = throwError $ Default "Unexpected error in let"
 eval env (List [Atom "load", String filename]) = do
   f <- load filename
   mapM (eval env) f
@@ -96,6 +120,13 @@ eval env (List (function:args)) = do
   argVals <- mapM (eval env) args
   apply func argVals
 eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
+
+ensureAtom :: LispVal -> IOThrowsError LispVal
+ensureAtom n@(Atom _) = return n
+ensureAtom _ = throwError $ Default "Type error"
+
+extractVar :: LispVal -> String
+extractVar (Atom atom) = atom
 
 apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
 apply (PrimitiveFunc _ func) args = liftThrows $ func args
@@ -122,16 +153,16 @@ makeFunc ::
   -> [LispVal]
   -> [LispVal]
   -> m LispVal
-makeFunc name varargs env params' body' =
-  return $ Func name (map showVal params') varargs body' env
+makeFunc name' varargs env params' body' =
+  return $ Func name' (map showVal params') varargs body' env
 
 makeNormalFunc ::
      String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
-makeNormalFunc name = makeFunc name Nothing
+makeNormalFunc name' = makeFunc name' Nothing
 
 makeVarArgs ::
      String -> LispVal -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
-makeVarArgs name = (makeFunc name) . Just . showVal
+makeVarArgs name' = (makeFunc name') . Just . showVal
 
 isBound :: Env -> String -> IO Bool
 isBound envRef var =
