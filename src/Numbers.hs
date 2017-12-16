@@ -1,18 +1,18 @@
 module Numbers where
 
-import Control.Monad.Except
-import Data.Complex
-import Data.Ratio
-import DataTypes
-       (Arity(..), LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
+import           Control.Monad.Except
+import           Data.Complex
+import           Data.Ratio
+import           DataTypes            (Arity (..), LispError (..), LispVal (..),
+                                       PrimitiveFunc, ThrowsError)
 
 foldlM :: Monad m => (a -> b -> m a) -> a -> [b] -> m a
 foldlM f v (x:xs) = (f v x) >>= \a -> foldlM f a xs
-foldlM _ v [] = return v
+foldlM _ v []     = return v
 
 foldl1M :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldl1M f (x:xs) = foldlM f x xs
-foldl1M _ _ = error "Unexpected error in foldl1M"
+foldl1M _ _      = error "Unexpected error in foldl1M"
 
 numAdd :: PrimitiveFunc
 numAdd [] = return $ Number 1
@@ -94,22 +94,46 @@ numMod [a, b] = do
     doMod _ = throwError $ Default "Unexpected error in modulo"
 numMod a = throwError $ NumArgs (MinMax 2 2) (length a) a
 
+numRem :: PrimitiveFunc
+numRem [] = throwError $ NumArgs (MinMax 2 2) 0 []
+numRem (a:[]) = throwError $ NumArgs (MinMax 2 2) 1 [a]
+numRem [a, b] = do
+  c <- numCast $ [a, b]
+  doRem c
+  where
+    doRem :: LispVal -> ThrowsError LispVal
+    doRem (List [Number c, Number d]) = return $ Number (c `rem` d)
+    doRem (List [c@(Rational _), d@(Rational _)]) = do
+      Number c' <- numToInt c
+      Number d' <- numToInt d
+      return $ Rational ((c' `rem` d') % 1)
+    doRem (List [c@(Float _), d@(Float _)]) = do
+      Number c' <- numToInt c
+      Number d' <- numToInt d
+      return $ Float (fromInteger (c' `rem` d'))
+    doRem (List [c@(Complex _), d@(Complex _)]) = do
+      Number c' <- numToInt c
+      Number d' <- numToInt d
+      return $ Complex (fromInteger (c' `rem` d') :+ 0)
+    doRem _ = throwError $ Default "Unexpected error in remainder"
+numRem a = throwError $ NumArgs (MinMax 2 2) (length a) a
+
 isInteger :: PrimitiveFunc
 isInteger [Number _] = return $ Bool True
-isInteger [_] = return $ Bool False
-isInteger a = throwError $ NumArgs (MinMax 1 1) (length a) a
+isInteger [_]        = return $ Bool False
+isInteger a          = throwError $ NumArgs (MinMax 1 1) (length a) a
 
 isRational :: PrimitiveFunc
 isRational [Rational _] = return $ Bool True
-isRational a = isInteger a
+isRational a            = isInteger a
 
 isReal :: PrimitiveFunc
 isReal [Float _] = return $ Bool True
-isReal a = isRational a
+isReal a         = isRational a
 
 isComplex :: PrimitiveFunc
 isComplex [Complex _] = return $ Bool True
-isComplex a = isReal a
+isComplex a           = isReal a
 
 isNumber :: PrimitiveFunc
 isNumber = isComplex
@@ -157,11 +181,11 @@ numCast [a@(Complex _), (Number b)] =
   return $ List [a, Complex (fromInteger b :+ 0)]
 numCast [a, b] =
   case a of
-    Number _ -> doThrowError b
-    Float _ -> doThrowError b
+    Number _   -> doThrowError b
+    Float _    -> doThrowError b
     Rational _ -> doThrowError b
-    Complex _ -> doThrowError b
-    _ -> doThrowError a
+    Complex _  -> doThrowError b
+    _          -> doThrowError a
   where
     doThrowError :: LispVal -> ThrowsError LispVal
     doThrowError num = throwError $ TypeMismatch "number" num
@@ -176,7 +200,7 @@ numBoolBinop op b (c:d) = do
   List [b', c'] <- numCast [b, c]
   result <- op b' c'
   case result of
-    Bool True -> numBoolBinop op c' d
+    Bool True  -> numBoolBinop op c' d
     Bool False -> return $ Bool False
 numBoolBinop _ _ _ = return $ Bool True
 
@@ -260,16 +284,6 @@ numQuotient args =
         List [Number a, Number b] -> return $ Number (a `quot` b)
         _ -> throwError $ Default "Unexpected error in <=" -- TODO better errors
 
-numRemainder :: PrimitiveFunc
-numRemainder args =
-  if length args /= 2
-    then throwError $ NumArgs (MinMax 2 2) (length args) args
-    else do
-      nums <- numCast args
-      case nums of
-        List [Number a, Number b] -> return $ Number (a `rem` b)
-        _ -> throwError $ Default "Unexpected error in <=" -- TODO better errors
-
 numPrimitives :: [(String, PrimitiveFunc)]
 numPrimitives =
   [ ("+", numAdd)
@@ -289,5 +303,5 @@ numPrimitives =
   , (">=", numBoolBinopGte)
   , ("<=", numBoolBinopLte)
   , ("quotient", numQuotient)
-  , ("remainer", numRemainder)
+  , ("remainder", numRem)
   ]
