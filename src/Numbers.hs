@@ -204,7 +204,7 @@ numBoolBinop op b (c:d) = do
     Bool False -> return $ Bool False
 numBoolBinop _ _ _ = return $ Bool True
 
-numBoolBinopEq :: [LispVal] -> Either LispError LispVal
+numBoolBinopEq :: [LispVal] -> ThrowsError LispVal
 numBoolBinopEq [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopEq (x:xs) = numBoolBinop fn x xs
   where
@@ -215,7 +215,7 @@ numBoolBinopEq (x:xs) = numBoolBinop fn x xs
     fn (Complex c) (Complex d) = return $ Bool (c == d)
     fn _ _ = throwError $ Default "Unexpected error in ="
 
-numBoolBinopNeq :: [LispVal] -> Either LispError LispVal
+numBoolBinopNeq :: [LispVal] -> ThrowsError LispVal
 numBoolBinopNeq [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
   where
@@ -226,7 +226,7 @@ numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
     fn (Complex c) (Complex d) = return $ Bool (c /= d)
     fn _ _ = throwError $ Default "Unexpected error in /="
 
-numBoolBinopLt :: [LispVal] -> Either LispError LispVal
+numBoolBinopLt :: [LispVal] -> ThrowsError LispVal
 numBoolBinopLt [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopLt (x:xs) = numBoolBinop fn x xs
   where
@@ -238,7 +238,7 @@ numBoolBinopLt (x:xs) = numBoolBinop fn x xs
       throwError $ Default "< not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in <"
 
-numBoolBinopLte :: [LispVal] -> Either LispError LispVal
+numBoolBinopLte :: [LispVal] -> ThrowsError LispVal
 numBoolBinopLte [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopLte (x:xs) = numBoolBinop fn x xs
   where
@@ -250,7 +250,7 @@ numBoolBinopLte (x:xs) = numBoolBinop fn x xs
       throwError $ Default "<= not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in <="
 
-numBoolBinopGt :: [LispVal] -> Either LispError LispVal
+numBoolBinopGt :: [LispVal] -> ThrowsError LispVal
 numBoolBinopGt [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopGt (x:xs) = numBoolBinop fn x xs
   where
@@ -262,7 +262,7 @@ numBoolBinopGt (x:xs) = numBoolBinop fn x xs
       throwError $ Default "> not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in >"
 
-numBoolBinopGte :: [LispVal] -> Either LispError LispVal
+numBoolBinopGte :: [LispVal] -> ThrowsError LispVal
 numBoolBinopGte [] = throwError $ NumArgs (Min 1) 0 []
 numBoolBinopGte (x:xs) = numBoolBinop fn x xs
   where
@@ -284,6 +284,26 @@ numQuotient args =
         List [Number a, Number b] -> return $ Number (a `quot` b)
         _ -> throwError $ Default "Unexpected error in <=" -- TODO better errors
 
+unaryTrig ::
+     (Double -> Double) -> (Double -> Double -> Complex Double) -> PrimitiveFunc
+unaryTrig op complexOp args =
+  if length args /= 1
+    then throwError $ NumArgs (MinMax 1 1) (length args) args
+    else do
+      case args of
+        [Number a] -> return $ Float (op $ fromInteger a)
+        [Rational a] -> return $ Float (op $ fromRational a)
+        [Float a] -> return $ Float (op a)
+        [Complex a] -> return $ Complex $ complexOp (realPart a) (imagPart a)
+        _ -> throwError $ Default "Numerical input expected"
+
+numSine :: PrimitiveFunc
+numSine = unaryTrig sin (\r i -> ((sin r) * (cosh i)) :+ ((cos r) * (sinh i)))
+
+numCos :: PrimitiveFunc
+numCos =
+  unaryTrig cos (\r i -> ((cos r) * (cosh i)) :+ (-1 * ((sin r) * (sinh i))))
+
 numPrimitives :: [(String, PrimitiveFunc)]
 numPrimitives =
   [ ("+", numAdd)
@@ -304,4 +324,5 @@ numPrimitives =
   , ("<=", numBoolBinopLte)
   , ("quotient", numQuotient)
   , ("remainder", numRem)
+  , ("sin", numSine)
   ]
