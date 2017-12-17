@@ -325,4 +325,5 @@ numPrimitives =
   , ("quotient", numQuotient)
   , ("remainder", numRem)
   , ("sin", numSine)
+  , ("cos", numCos)
   ]
