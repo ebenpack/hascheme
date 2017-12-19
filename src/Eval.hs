@@ -85,6 +85,19 @@ eval env (List (Atom "lambda":varargs@(Atom _):body')) =
   makeVarArgs "λ" varargs env [] body'
 eval env (List (Atom "lambda":DottedList params' varargs:body')) =
   makeVarArgs "λ" varargs env params' body'
+eval env (List [Atom "let*", List pairs, body']) = do
+  List atoms <- getHeads pairs
+  atoms' <- mapM ensureAtom atoms
+  List vals <- (getTails pairs)
+  env' <- buildEnv env atoms' vals
+  eval env' body'
+  where
+    buildEnv :: Env -> [LispVal] -> [LispVal] -> IOThrowsError Env
+    buildEnv env [] [] = return env
+    buildEnv env (atomH:atomT) (valH:valT) = do
+      val <- eval env valH
+      env' <- liftIO $ bindVars env [(extractVar atomH, val)]
+      buildEnv env' atomT valT
 eval env (List [Atom "let", List pairs, body']) = do
   List atoms <- getHeads pairs
   atoms' <- mapM ensureAtom atoms
@@ -94,19 +107,6 @@ eval env (List [Atom "let", List pairs, body']) = do
     liftIO $
     bindVars env (Prelude.zipWith (\a b -> (extractVar a, b)) atoms' vals')
   eval env' body'
-  where
-    getHeads :: [LispVal] -> IOThrowsError LispVal
-    getHeads [] = return $ List []
-    getHeads (List (x:xs):ys) = do
-      List result <- getHeads ys
-      return $ List (x : result)
-    getHeads _ = throwError $ Default "Unexpected error in let"
-    getTails :: [LispVal] -> IOThrowsError LispVal
-    getTails [] = return $ List []
-    getTails (List [x, xs]:ys) = do
-      List result <- getTails ys
-      return $ List (xs : result)
-    getTails _ = throwError $ Default "Unexpected error in let"
 eval env (List [Atom "load", String filename]) = do
   f <- load filename
   mapM (eval env) f
@@ -118,6 +118,20 @@ eval env (List (function:args)) = do
   argVals <- mapM (eval env) args
   apply func argVals
 eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
+
+getHeads :: [LispVal] -> IOThrowsError LispVal
+getHeads [] = return $ List []
+getHeads (List (x:xs):ys) = do
+  List result <- getHeads ys
+  return $ List (x : result)
+getHeads _ = throwError $ Default "Unexpected error in let"
+
+getTails :: [LispVal] -> IOThrowsError LispVal
+getTails [] = return $ List []
+getTails (List [x, xs]:ys) = do
+  List result <- getTails ys
+  return $ List (xs : result)
+getTails _ = throwError $ Default "Unexpected error in let"
 
 ensureAtom :: LispVal -> IOThrowsError LispVal
 ensureAtom n@(Atom _) = return n
