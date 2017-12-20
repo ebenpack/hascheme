@@ -111,21 +111,12 @@ eval env (List [Atom "letrec", List pairs, body']) = do
   List atoms <- getHeads pairs
   mapM ensureAtom atoms
   List vals <- getTails pairs
-  env' <- buildEmptyEnv env atoms
+  env' <- liftIO $ bindVars env (map (\a -> (extractVar a, Void)) atoms)
   vals' <- mapM (eval env') vals
   mapM
     (\(n, v) -> setVar env' n v)
     (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals')
   eval env' body'
-  where
-    buildEmptyEnv :: Env -> [LispVal] -> IOThrowsError Env
-    buildEmptyEnv env' atoms = do
-      liftIO $ bindVars env' (map (\a -> (extractVar a, Void)) atoms)
-    buildEnv :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
-    buildEnv _ [] [] = return Void
-    buildEnv env' (atomH:atomT) (valH:valT) = do
-      eval env' valH >>= setVar env' (extractVar atomH)
-      buildEnv env' atomT valT
 eval env (List [Atom "or", expr1, expr2]) = do
   result <- eval env expr1
   case result of
