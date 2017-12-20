@@ -3,7 +3,7 @@ module Strings where
 import Control.Monad.Except
 import Data.Char
 import DataTypes
-       (Arity(..), LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
+       (LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
 import Util (boolBinop)
 
 unpackStr :: LispVal -> ThrowsError String

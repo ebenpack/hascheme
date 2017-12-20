@@ -1,11 +1,8 @@
 module Primitives where
 
 import Control.Monad.Except
-import Data.Complex
-import Data.Ratio
 import DataTypes
-       (Arity(..), Env, LispError(..), LispVal(..), PrimitiveFunc,
-        ThrowsError)
+       (Arity(..), LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
 
 import Lists (listPrimitives)
 import Numbers (numPrimitives)
@@ -58,7 +55,7 @@ eqv [(List arg1), (List arg2)] =
   where
     eqvPair (x1, x2) =
       case eqv [x1, x2] of
-        Left err -> False
+        Left _ -> False
         Right (Bool val) -> val
 eqv [_, _] = return $ Bool False
 eqv badArgList =

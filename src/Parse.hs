@@ -1,18 +1,12 @@
 module Parse where
 
-import Control.Monad (liftM)
-import Data.Char (chr, digitToInt, toLower)
-import Data.Complex
-import Data.Maybe (fromJust, listToMaybe)
-import Data.Ratio
+import Data.Char (chr, toLower)
 import DataTypes (LispVal(..))
 
-import Numeric (readDec, readHex, readInt, readOct)
 import ParseNumber (parseNumber)
 import ParserCombinators
-       (Parser, (<|>), alphanum, char, digit, endBy, item, letter, many',
-        many1, noneOf, oneOf, sepBy, skipMany, skipMany1, skipUntil,
-        spaces, string, try)
+       (Parser, (<|>), char, digit, endBy, item, letter, many', many1,
+        noneOf, oneOf, sepBy, skipMany, skipUntil, spaces, string, try)
 
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"

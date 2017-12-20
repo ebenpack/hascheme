@@ -70,7 +70,7 @@ unwordsList = unwords . map showVal
 
 showVal :: LispVal -> String
 showVal (String contents) = "\"" ++ contents ++ "\""
-showVal (Atom name) = name
+showVal (Atom name') = name'
 showVal (Number contents) = show contents
 showVal (Rational contents) =
   show (numerator contents) ++ "/" ++ show (denominator contents)

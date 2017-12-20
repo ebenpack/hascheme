@@ -44,10 +44,6 @@
 
 (define (product . lst) (fold * 1 lst))
 
-(define (and . lst) (fold && #t lst))
-
-(define (or . lst) (fold || #f lst))
-
 (define (max first . rest) (fold (lambda (old new) (if (> old new) old new)) first rest))
 
 (define (min first . rest) (fold (lambda (old new) (if (< old new) old new)) first rest))

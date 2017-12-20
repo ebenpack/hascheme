@@ -85,28 +85,57 @@ eval env (List (Atom "lambda":varargs@(Atom _):body')) =
   makeVarArgs "λ" varargs env [] body'
 eval env (List (Atom "lambda":DottedList params' varargs:body')) =
   makeVarArgs "λ" varargs env params' body'
-eval env (List [Atom "let*", List pairs, body']) = do
-  List atoms <- getHeads pairs
-  atoms' <- mapM ensureAtom atoms
-  List vals <- (getTails pairs)
-  env' <- buildEnv env atoms' vals
-  eval env' body'
-  where
-    buildEnv :: Env -> [LispVal] -> [LispVal] -> IOThrowsError Env
-    buildEnv env [] [] = return env
-    buildEnv env (atomH:atomT) (valH:valT) = do
-      val <- eval env valH
-      env' <- liftIO $ bindVars env [(extractVar atomH, val)]
-      buildEnv env' atomT valT
 eval env (List [Atom "let", List pairs, body']) = do
   List atoms <- getHeads pairs
-  atoms' <- mapM ensureAtom atoms
-  List vals <- (getTails pairs)
+  mapM ensureAtom atoms
+  List vals <- getTails pairs
   vals' <- mapM (eval env) vals
   env' <-
     liftIO $
-    bindVars env (Prelude.zipWith (\a b -> (extractVar a, b)) atoms' vals')
+    bindVars env (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals')
   eval env' body'
+eval env (List [Atom "let*", List pairs, body']) = do
+  List atoms <- getHeads pairs
+  mapM ensureAtom atoms
+  List vals <- getTails pairs
+  env' <- buildEnv env atoms vals
+  eval env' body'
+  where
+    buildEnv :: Env -> [LispVal] -> [LispVal] -> IOThrowsError Env
+    buildEnv env' [] [] = return env'
+    buildEnv env' (atomH:atomT) (valH:valT) = do
+      val <- eval env' valH
+      env'' <- liftIO $ bindVars env' [(extractVar atomH, val)]
+      buildEnv env'' atomT valT
+eval env (List [Atom "letrec", List pairs, body']) = do
+  List atoms <- getHeads pairs
+  mapM ensureAtom atoms
+  List vals <- getTails pairs
+  env' <- buildEmptyEnv env atoms
+  vals' <- mapM (eval env') vals
+  mapM
+    (\(n, v) -> setVar env' n v)
+    (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals')
+  eval env' body'
+  where
+    buildEmptyEnv :: Env -> [LispVal] -> IOThrowsError Env
+    buildEmptyEnv env' atoms = do
+      liftIO $ bindVars env' (map (\a -> (extractVar a, Void)) atoms)
+    buildEnv :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+    buildEnv _ [] [] = return Void
+    buildEnv env' (atomH:atomT) (valH:valT) = do
+      eval env' valH >>= setVar env' (extractVar atomH)
+      buildEnv env' atomT valT
+eval env (List [Atom "or", expr1, expr2]) = do
+  result <- eval env expr1
+  case result of
+    Bool True -> return result
+    _ -> eval env expr2
+eval env (List [Atom "and", expr1, expr2]) = do
+  result <- eval env expr1
+  case result of
+    Bool False -> return result
+    _ -> eval env expr2
 eval env (List [Atom "load", String filename]) = do
   f <- load filename
   mapM (eval env) f
@@ -121,14 +150,14 @@ eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 getHeads :: [LispVal] -> IOThrowsError LispVal
 getHeads [] = return $ List []
-getHeads (List (x:xs):ys) = do
+getHeads (List (x:_):ys) = do
   List result <- getHeads ys
   return $ List (x : result)
 getHeads _ = throwError $ Default "Unexpected error in let"
 
 getTails :: [LispVal] -> IOThrowsError LispVal
 getTails [] = return $ List []
-getTails (List [x, xs]:ys) = do
+getTails (List [_, xs]:ys) = do
   List result <- getTails ys
   return $ List (xs : result)
 getTails _ = throwError $ Default "Unexpected error in let"
