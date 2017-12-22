@@ -14,9 +14,7 @@ import System.IO
 evalList :: Env -> [LispVal] -> IOThrowsError LispVal
 evalList _ [] = return Void
 evalList env [a] = eval env a
-evalList env (y:ys) = do
-  eval env y
-  evalList env ys
+evalList env (y:ys) = eval env y >> evalList env ys
 
 eval :: Env -> LispVal -> IOThrowsError LispVal
 eval _ val@(Void) = return val
