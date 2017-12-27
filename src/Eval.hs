@@ -1,7 +1,9 @@
 module Eval where
 
 import Control.Monad.Except
+import Data.Complex
 import Data.IORef
+import Data.Ratio
 import DataTypes
        (Arity(..), Env, IOThrowsError, LispError(..), LispVal(..),
         PrimitiveFunc, ThrowsError, extractValue, showVal, trapError)
@@ -21,9 +23,15 @@ eval _ val@(Void) = return val
 eval _ val@(String _) = return val
 eval _ val@(Character _) = return val
 eval _ val@(Number _) = return val
-eval _ val@(Rational _) = return val
+eval _ (Rational val) =
+  if denominator val == 1
+    then return $ Number $ numerator val
+    else return $ Rational val
 eval _ val@(Float _) = return val
-eval _ val@(Complex _) = return val
+eval _ (Complex val) =
+  if imagPart val == 0
+    then return $ Float $ realPart val
+    else return $ Complex val
 eval _ val@(Bool _) = return val
 eval env (Atom id') = getVar env id'
 eval _ (List [Atom "quote", val]) = return val
