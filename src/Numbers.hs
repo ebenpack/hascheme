@@ -15,7 +15,7 @@ foldl1M f (x:xs) = foldlM f x xs
 foldl1M _ _ = error "Unexpected error in foldl1M"
 
 numAdd :: PrimitiveFunc
-numAdd [] = return $ Number 1
+numAdd [] = return $ Number 0
 numAdd a = foldlM (\b c -> doAdd =<< (numCast [b, c])) (Number 0) a
   where
     doAdd :: LispVal -> ThrowsError LispVal

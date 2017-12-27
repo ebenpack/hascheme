@@ -95,7 +95,8 @@ parseBinary = parseHelper readBinary (oneOf "01")
 
 parseFloatHelper :: Int -> Parser Char -> (ReadS Integer) -> Parser LispVal
 parseFloatHelper base p reader =
-  (char '-' >> (parseFloat' negate)) <|> (parseFloat' id)
+  (char '-' >> (parseFloat' negate)) <|> (char '+' >> parseFloat' id) <|>
+  (parseFloat' id)
   where
     helper :: Integer -> Integer -> Double
     helper whole decimal =
