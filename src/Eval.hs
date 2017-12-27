@@ -174,6 +174,11 @@ apply (Func _ params' varargs body' closure') args =
         Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
         Nothing -> return env
 apply (IOFunc _ func) args = func args
+apply f a =
+  throwError $
+  Default $
+  "application: not a procedure; " ++
+  "expected a procedure that can be applied to arguments; given: " ++ show f
 
 makeFunc ::
      Monad m
