@@ -1,5 +1,6 @@
 module Lists where
 
+import Control.Monad (replicateM)
 import Control.Monad.Except
 import DataTypes
        (Arity(..), LispError(..), LispVal(..), PrimitiveFunc)
@@ -38,6 +39,28 @@ empty :: PrimitiveFunc
 empty [List []] = return $ Bool True
 empty [List _] = return $ Bool False
 
+accessors :: [(String, PrimitiveFunc)]
+accessors =
+  map (\a -> ("c" ++ a ++ "r", makeAccessor a)) $
+  replicateM 2 ['a', 'd'] ++ replicateM 3 ['a', 'd'] ++ replicateM 4 ['a', 'd']
+  where
+    makeAccessor :: String -> PrimitiveFunc
+    makeAccessor str =
+      foldr
+        (\chr acc ->
+           if chr == 'a'
+             then comp acc car
+             else comp acc cdr)
+        identity
+        str
+    comp :: PrimitiveFunc -> PrimitiveFunc -> PrimitiveFunc
+    comp a b =
+      (\c -> do
+         d <- a c
+         b [d])
+    identity :: PrimitiveFunc
+    identity [n] = return n
+
 listPrimitives :: [(String, PrimitiveFunc)]
 listPrimitives =
   [ ("pair?", isPair)
@@ -45,4 +68,5 @@ listPrimitives =
   , ("cdr", cdr)
   , ("cons", cons)
   , ("empty?", empty)
-  ]
+  ] ++
+  accessors
