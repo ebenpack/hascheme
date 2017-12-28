@@ -38,10 +38,10 @@ data LispVal
   | List [LispVal]
   | DottedList [LispVal]
                LispVal
-  | Integer Integer -- Integer
-  | Rational Rational -- Rational
-  | Float Double -- Real
-  | Complex (Complex Double) -- Complex
+  | Integer Integer
+  | Rational Rational
+  | Float Double
+  | Complex (Complex Double)
   | String String
   | Character Char
   | Bool Bool
@@ -61,8 +61,8 @@ instance Show LispVal where
   show = showVal
 
 data Arity
-  = Min Int -- Min
-  | MinMax Int -- Min/Max
+  = Min Int
+  | MinMax Int
            Int
 
 unwordsList :: [LispVal] -> String

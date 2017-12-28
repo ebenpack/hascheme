@@ -15,11 +15,13 @@ import Primitives (eqv, primitives)
 import System.Console.Haskeline
 import System.IO
 
-evalList :: Env -> [LispVal] -> IOThrowsError LispVal
-evalList _ [] = return Void
-evalList env [a] = eval env a
-evalList env (y:ys) = eval env y >> evalList env ys
+liftThrows :: ThrowsError a -> IOThrowsError a
+liftThrows (Left err) = throwError err
+liftThrows (Right val) = return val
 
+--------------
+-- Eval
+--------------
 eval :: Env -> LispVal -> IOThrowsError LispVal
 eval _ val@(Void) = return val
 eval _ val@(String _) = return val
@@ -147,6 +149,11 @@ eval env (List (function:args)) = do
   apply func argVals
 eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
+evalList :: Env -> [LispVal] -> IOThrowsError LispVal
+evalList _ [] = return Void
+evalList env [a] = eval env a
+evalList env (y:ys) = eval env y >> evalList env ys
+
 getHeads :: [LispVal] -> IOThrowsError LispVal
 getHeads [] = return $ List []
 getHeads (List (x:_):ys) = do
@@ -167,28 +174,6 @@ ensureAtom _ = throwError $ Default "Type error"
 
 extractVar :: LispVal -> String
 extractVar (Atom atom) = atom
-
-apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
-apply (PrimitiveFunc _ func) args = liftThrows $ func args
-apply (Func _ params' varargs body' closure') args =
-  if num params' /= num args && varargs == Nothing
-    then throwError $ NumArgs (Min $ length params') (length args) args
-    else (liftIO $ bindVars closure' $ zip params' args) >>= bindVarArgs varargs >>=
-         evalBody
-  where
-    remainingArgs = drop (length params') args
-    num = toInteger . length
-    evalBody env = liftM last $ mapM (eval env) body'
-    bindVarArgs arg env =
-      case arg of
-        Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
-        Nothing -> return env
-apply (IOFunc _ func) args = func args
-apply f a =
-  throwError $
-  Default $
-  "application: not a procedure; " ++
-  "expected a procedure that can be applied to arguments; given: " ++ show f
 
 makeFunc ::
      Monad m
@@ -249,10 +234,36 @@ bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
       ref <- newIORef value
       return (var, ref)
 
-liftThrows :: ThrowsError a -> IOThrowsError a
-liftThrows (Left err) = throwError err
-liftThrows (Right val) = return val
+--------------
+-- Apply
+--------------
+apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
+apply (PrimitiveFunc _ func) args = liftThrows $ func args
+apply (Func _ params' varargs body' closure') args =
+  if num params' /= num args && varargs == Nothing
+    then throwError $ NumArgs (Min $ length params') (length args) args
+    else (liftIO $ bindVars closure' $ zip params' args) >>= bindVarArgs varargs >>=
+         evalBody
+  where
+    remainingArgs = drop (length params') args
+    num = toInteger . length
+    evalBody env = liftM last $ mapM (eval env) body'
+    bindVarArgs arg env =
+      case arg of
+        Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
+        Nothing -> return env
+apply (IOFunc _ func) args = func args
+apply f a =
+  throwError $
+  Default $
+  "application: not a procedure; " ++
+  "expected a procedure that can be applied to arguments; given: " ++ show f
 
+--------------
+-- Env
+-- Bindings
+-- Primitives
+--------------
 nullEnv :: IO Env
 nullEnv = newIORef []
 
@@ -312,11 +323,12 @@ load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
 readAll :: [LispVal] -> IOThrowsError LispVal
 readAll [String filename] = liftM List $ load filename
 
+--------------
+-- Run
+-- Repl
+--------------
 runIOThrows :: IOThrowsError String -> IO String
 runIOThrows action = runExceptT (trapError action) >>= return . extractValue
-
-flushStr :: String -> IO ()
-flushStr str = putStr str >> hFlush stdout
 
 readOrThrow :: Parser a -> String -> ThrowsError a
 readOrThrow parser input =

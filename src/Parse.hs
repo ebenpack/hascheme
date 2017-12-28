@@ -8,10 +8,20 @@ import ParserCombinators
        (Parser, (<|>), char, digit, endBy, item, letter, many', many1,
         noneOf, oneOf, sepBy, skipMany, skipUntil, spaces, string, try)
 
+--   string "|#"
+-- TODO: Vector
+parseExpr :: Parser LispVal
+parseExpr =
+  parseComment <|> parseNumber <|> parseCharacter <|> parseAtom <|> parseString <|>
+  parseQuoted <|>
+  parseLists
+
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
 
+--------------
 -- String
+--------------
 parseString :: Parser LispVal
 parseString = do
   char '"'
@@ -31,7 +41,9 @@ parseString = do
           'r' -> '\r'
           't' -> '\t'
 
+--------------
 -- Atom
+--------------
 parseAtom :: Parser LispVal
 parseAtom = do
   first <- letter <|> symbol
@@ -43,7 +55,9 @@ parseAtom = do
       "#f" -> Bool False
       _ -> Atom atom
 
+--------------
 -- Char
+--------------
 parseCharacter :: Parser LispVal
 parseCharacter
      -- TODO: Meta-, bucky-bit stuff
@@ -65,7 +79,9 @@ parseCharacter
       "tab" -> Character $ chr 9
       [x] -> Character x
 
+--------------
 -- Lists
+--------------
 parseList :: Parser LispVal
 parseList = do
   skipMany spaces
@@ -91,14 +107,18 @@ parseLists = do
     else char ']'
   return x
 
+--------------
 -- Quoted
+--------------
 parseQuoted :: Parser LispVal
 parseQuoted = do
   char '\''
   x <- parseExpr
   return $ List [Atom "quote", x]
 
+--------------
 -- Backquote
+--------------
 parseQuasiQuote :: Parser LispVal
 parseQuasiQuote = do
   char '`'
@@ -117,6 +137,9 @@ parseUnquoteSplicing = do
   x <- parseExpr
   return $ List [Atom "unquote-splicing", x]
 
+--------------
+-- Comment
+--------------
 parseComment :: Parser LispVal
 parseComment = parseLineComment <|> parseBlockComment -- TODO: Fix
 
@@ -135,11 +158,3 @@ parseBlockComment = do
     takeAnything = do
       item
       return Void
-
---   string "|#"
--- TODO: Vector
-parseExpr :: Parser LispVal
-parseExpr =
-  parseComment <|> parseNumber <|> parseCharacter <|> parseAtom <|> parseString <|>
-  parseQuoted <|>
-  parseLists
