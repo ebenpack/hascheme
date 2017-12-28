@@ -38,6 +38,7 @@ isPair _ = return $ Bool False
 empty :: PrimitiveFunc
 empty [List []] = return $ Bool True
 empty [List _] = return $ Bool False
+empty _ = throwError $ Default "Type error: `empty` called on non-list"
 
 accessors :: [(String, PrimitiveFunc)]
 accessors =
@@ -60,6 +61,7 @@ accessors =
          b [d])
     identity :: PrimitiveFunc
     identity [n] = return n
+    identity a = return $ List a
 
 listPrimitives :: [(String, PrimitiveFunc)]
 listPrimitives =

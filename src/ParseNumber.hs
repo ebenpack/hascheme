@@ -7,7 +7,8 @@ import DataTypes (LispVal(..))
 
 import Numeric (readDec, readHex, readInt, readOct)
 import ParserCombinators
-       (Parser(..), (<|>), char, digit, hexDigit, many1, octDigit, oneOf)
+       (Parser(..), (<|>), char, digit, failure, hexDigit, many1,
+        octDigit, oneOf)
 
 readBinary :: ReadS Integer
 readBinary = readInt 2 (`elem` "01") digitToInt
@@ -21,7 +22,7 @@ parseNumber = parseComplex <|> parseRational <|> parseFloat <|> parseInteger
 parseInteger :: Parser LispVal
 parseInteger =
   parseIntegerDecimal <|> do
-    char '#'
+    _ <- char '#'
     base <- oneOf "bdox"
     parseIntegerBase base
 
@@ -32,6 +33,7 @@ parseIntegerBase base =
     'o' -> parseIntegerOctal
     'x' -> parseIntegerHex
     'b' -> parseIntegerBinary
+    _ -> failure "Bad integer format"
 
 parseIntegerHelper :: ReadS Integer -> Parser Char -> Parser LispVal
 parseIntegerHelper reader parser =
@@ -60,7 +62,7 @@ parseIntegerBinary = parseIntegerHelper readBinary (oneOf "01")
 parseFloat :: Parser LispVal
 parseFloat =
   parseFloatDecimal <|> do
-    char '#'
+    _ <- char '#'
     base <- oneOf "bdox"
     parseFloatBase base
 
@@ -71,6 +73,7 @@ parseFloatBase base =
     'o' -> parseFloatOctal
     'x' -> parseFloatHex
     'b' -> parseFloatBinary
+    _ -> failure "Bad float format"
 
 parseFloatDecimal :: Parser LispVal
 parseFloatDecimal = parseFloatHelper 10 digit readDec
@@ -97,14 +100,13 @@ parseFloatHelper base p reader =
                  w = fromIntegral whole :: Double
                  b = fromIntegral base :: Double
                  e = logBase b d
-                 floored = floor e
-                 f = fromIntegral floored
+                 f = fromIntegral $ floor e
                  g = d / (b ** (f + 1))
              in w + g
     parseFloat' :: (Double -> Double) -> Parser LispVal
     parseFloat' op = do
       w <- many1 p
-      char '.'
+      _ <- char '.'
       d <- many1 p
       let whole = fst . head $ reader w
           decimal = fst . head $ reader d
@@ -116,7 +118,7 @@ parseFloatHelper base p reader =
 parseComplex :: Parser LispVal
 parseComplex =
   parseComplexDecimal <|> do
-    char '#'
+    _ <- char '#'
     base <- oneOf "bdox"
     parseComplexBase base
 
@@ -127,6 +129,7 @@ parseComplexBase base =
     'o' -> parseComplexOctal
     'x' -> parseComplexHex
     'b' -> parseComplexBinary
+    _ -> failure "Bad complex format"
 
 parseComplexDecimal :: Parser LispVal
 parseComplexDecimal =
@@ -149,7 +152,7 @@ parseComplexHelper ::
 parseComplexHelper pn pf pr = do
   real <- fmap toDouble (pr <|> pf <|> pn)
   imaginary <- fmap toDouble (pr <|> pf <|> pn)
-  char 'i'
+  _ <- char 'i'
   return $ Complex (real :+ imaginary)
   where
     toDouble (Float x) = x
@@ -162,7 +165,7 @@ parseComplexHelper pn pf pr = do
 parseRational :: Parser LispVal
 parseRational =
   parseRationalDecimal <|> do
-    char '#'
+    _ <- char '#'
     base <- oneOf "bdox"
     parseRationalBase base
 
@@ -173,11 +176,12 @@ parseRationalBase base =
     'o' -> parseRationalOctal
     'x' -> parseRationalHex
     'b' -> parseRationalBinary
+    _ -> failure "Bad rational format"
 
 parseRationalHelper :: Parser LispVal -> Parser LispVal
 parseRationalHelper p = do
   num <- fmap toInt p
-  char '/'
+  _ <- char '/'
   denom <- fmap toInt p
   return $ Rational (num % denom)
   where

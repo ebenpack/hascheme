@@ -24,14 +24,14 @@ symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
 --------------
 parseString :: Parser LispVal
 parseString = do
-  char '"'
+  _ <- char '"'
   x <- many' (escapedChar <|> noneOf "\"\\")
-  char '"'
+  _ <- char '"'
   return $ String x
   where
     escapedChar :: Parser Char
     escapedChar = do
-      char '\\'
+      _ <- char '\\'
       x <- oneOf "\\\"nrt"
       return $
         case x of
@@ -62,7 +62,7 @@ parseCharacter :: Parser LispVal
 parseCharacter
      -- TODO: Meta-, bucky-bit stuff
  = do
-  string "#\\"
+  _ <- string "#\\"
   c <- many1 letter
   return $
     case map toLower c of
@@ -84,9 +84,9 @@ parseCharacter
 --------------
 parseList :: Parser LispVal
 parseList = do
-  skipMany spaces
+  _ <- skipMany spaces
   list <- sepBy parseExpr spaces
-  skipMany spaces
+  _ <- skipMany spaces
   return $ List list
 
 parseDottedList :: Parser LispVal
@@ -102,9 +102,10 @@ parseLists :: Parser LispVal
 parseLists = do
   open <- char '(' <|> char '['
   x <- parseDottedList <|> parseList
-  if open == '('
-    then char ')'
-    else char ']'
+  _ <-
+    if open == '('
+      then char ')'
+      else char ']'
   return x
 
 --------------
@@ -112,7 +113,7 @@ parseLists = do
 --------------
 parseQuoted :: Parser LispVal
 parseQuoted = do
-  char '\''
+  _ <- char '\''
   x <- parseExpr
   return $ List [Atom "quote", x]
 
@@ -121,19 +122,19 @@ parseQuoted = do
 --------------
 parseQuasiQuote :: Parser LispVal
 parseQuasiQuote = do
-  char '`'
+  _ <- char '`'
   x <- parseExpr
   return $ List [Atom "quasiquote", x]
 
 parseUnquote :: Parser LispVal
 parseUnquote = do
-  try (char ',')
+  _ <- try (char ',')
   x <- parseExpr
   return $ List [Atom "unquote", x]
 
 parseUnquoteSplicing :: Parser LispVal
 parseUnquoteSplicing = do
-  try (string ",@")
+  _ <- try (string ",@")
   x <- parseExpr
   return $ List [Atom "unquote-splicing", x]
 
@@ -145,16 +146,16 @@ parseComment = parseLineComment <|> parseBlockComment -- TODO: Fix
 
 parseLineComment :: Parser LispVal
 parseLineComment = do
-  char ';'
-  skipUntil (char '\n') item
+  _ <- char ';'
+  _ <- skipUntil (char '\n') item
   return Void -- TODO: This seems wrong
 
 parseBlockComment :: Parser LispVal
 parseBlockComment = do
-  string "#|"
-  skipUntil (string "|#") (parseBlockComment <|> takeAnything)
+  _ <- string "#|"
+  _ <- skipUntil (string "|#") (parseBlockComment <|> takeAnything)
   return Void
   where
     takeAnything = do
-      item
+      _ <- item
       return Void

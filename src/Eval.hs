@@ -1,6 +1,5 @@
 module Eval where
 
-import Control.Exception (bracket)
 import Control.Monad.Except
 import Data.Complex
 import Data.IORef
@@ -72,6 +71,8 @@ eval env (List ((Atom "case"):(key:clauses))) = do
       case match of
         Bool True -> evalList env exprs
         Bool False -> evalClauses key' rest
+        _ -> throwError $ Default "case: bad syntax"
+    evalClauses _ _ = throwError $ Default "case: bad syntax"
     inList :: PrimitiveFunc
     inList [_, List []] = return $ Bool False
     inList [key', List (x:xs)] = do
@@ -79,7 +80,7 @@ eval env (List ((Atom "case"):(key:clauses))) = do
       case eq of
         Bool True -> return $ Bool $ True
         _ -> inList [key, List xs]
-    inList [_, _] = throwError $ Default "case: bad syntax"
+    inList _ = throwError $ Default "case: bad syntax"
 eval _ (List ((Atom "case"):_)) =
   throwError $ Default "case: bad syntax in: (case)"
 eval env (List [Atom "set!", Atom var, form]) = eval env form >>= setVar env var
@@ -97,7 +98,7 @@ eval env (List (Atom "lambda":DottedList params' varargs:body')) =
   makeVarArgs "λ" varargs env params' body'
 eval env (List [Atom "let", List pairs, body']) = do
   List atoms <- getHeads pairs
-  mapM ensureAtom atoms
+  _ <- mapM ensureAtom atoms
   List vals <- getTails pairs
   vals' <- mapM (eval env) vals
   env' <-
@@ -106,7 +107,7 @@ eval env (List [Atom "let", List pairs, body']) = do
   eval env' body'
 eval env (List [Atom "let*", List pairs, body']) = do
   List atoms <- getHeads pairs
-  mapM ensureAtom atoms
+  _ <- mapM ensureAtom atoms
   List vals <- getTails pairs
   env' <- buildEnv env atoms vals
   eval env' body'
@@ -117,15 +118,17 @@ eval env (List [Atom "let*", List pairs, body']) = do
       val <- eval env' valH
       env'' <- liftIO $ bindVars env' [(extractVar atomH, val)]
       buildEnv env'' atomT valT
+    buildEnv _ _ _ = throwError $ Default "let*: bad syntax"
 eval env (List [Atom "letrec", List pairs, body']) = do
   List atoms <- getHeads pairs
-  mapM ensureAtom atoms
+  _ <- mapM ensureAtom atoms
   List vals <- getTails pairs
   env' <- liftIO $ bindVars env (map (\a -> (extractVar a, Void)) atoms)
   vals' <- mapM (eval env') vals
-  mapM
-    (\(n, v) -> setVar env' n v)
-    (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals')
+  _ <-
+    mapM
+      (\(n, v) -> setVar env' n v)
+      (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals')
   eval env' body'
 eval env (List [Atom "or", expr1, expr2]) = do
   result <- eval env expr1
@@ -139,7 +142,7 @@ eval env (List [Atom "and", expr1, expr2]) = do
     _ -> eval env expr2
 eval env (List [Atom "load", String filename]) = do
   f <- load filename
-  mapM (eval env) f
+  _ <- mapM (eval env) f
   return Void
 eval env (List [Atom "load-print", String filename]) =
   load filename >>= liftM List . mapM (eval env)
@@ -253,7 +256,7 @@ apply (Func _ params' varargs body' closure') args =
         Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
         Nothing -> return env
 apply (IOFunc _ func) args = func args
-apply f a =
+apply f _ =
   throwError $
   Default $
   "application: not a procedure; " ++
@@ -298,9 +301,11 @@ ioPrimitives =
 applyProc :: [LispVal] -> IOThrowsError LispVal
 applyProc [func, List args] = apply func args
 applyProc (func:args) = apply func args
+applyProc _ = throwError $ Default "applyProc error"
 
 makePort :: IOMode -> [LispVal] -> IOThrowsError LispVal
 makePort mode [String filename] = liftM Port $ liftIO $ openFile filename mode
+makePort _ _ = throwError $ Default "makePort error"
 
 closePort :: [LispVal] -> IOThrowsError LispVal
 closePort [Port port] = liftIO $ hClose port >> (return $ Bool True)
@@ -309,19 +314,23 @@ closePort _ = return $ Bool False
 readProc :: [LispVal] -> IOThrowsError LispVal
 readProc [] = readProc [Port stdin]
 readProc [Port port] = (liftIO $ hGetLine port) >>= liftThrows . readExpr
+readProc _ = throwError $ Default "readProc error"
 
 writeProc :: [LispVal] -> IOThrowsError LispVal
 writeProc [obj] = writeProc [obj, Port stdout]
 writeProc [obj, Port port] = liftIO $ hPrint port obj >> (return $ Bool True)
+writeProc _ = throwError $ Default "writeProc error"
 
 readContents :: [LispVal] -> IOThrowsError LispVal
 readContents [String filename] = liftM String $ liftIO $ readFile filename
+readContents _ = throwError $ Default "readContents error"
 
 load :: String -> IOThrowsError [LispVal]
 load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
 
 readAll :: [LispVal] -> IOThrowsError LispVal
 readAll [String filename] = liftM List $ load filename
+readAll _ = throwError $ Default "readAll error"
 
 --------------
 -- Run
@@ -335,6 +344,7 @@ readOrThrow parser input =
   case parse parser input of
     Left (err, _) -> throwError $ DataTypes.Parser err
     Right [(val, _)] -> return val
+    _ -> throwError $ Default "Read error"
 
 readExpr :: String -> ThrowsError LispVal
 readExpr = readOrThrow parseExpr
@@ -362,6 +372,7 @@ runOne args = do
   where
     show' :: LispVal -> String
     show' (List contents) = unwordsList' contents
+    show' _ = ""
     unwordsList' :: [LispVal] -> String
     unwordsList' = unlines . map showValNewline . filter printable
     showValNewline :: LispVal -> String

@@ -86,10 +86,10 @@ showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList h t) = "(" ++ unwordsList h ++ " . " ++ showVal t ++ ")"
-showVal (PrimitiveFunc name _) = "#<procedure:" ++ name ++ ">"
-showVal (Func {name = name}) = "#<procedure:" ++ name ++ ">"
+showVal (PrimitiveFunc name' _) = "#<procedure:" ++ name' ++ ">"
+showVal (Func {name = name'}) = "#<procedure:" ++ name' ++ ">"
 showVal (Port _) = "<IO port>"
-showVal (IOFunc name _) = "#<IO primitive:" ++ name ++ ">"
+showVal (IOFunc name' _) = "#<IO primitive:" ++ name' ++ ">"
 showVal Void = ""
 
 showError :: LispError -> String
@@ -98,23 +98,23 @@ showError (UnboundVar message varname) = message ++ ": " ++ varname
 showError (BadSpecialForm message form) = message ++ ": " ++ show form
 showError (NotFunction message func) = message ++ ": " ++ show func
 showError (NumArgs expected found args) =
-  let error =
+  let error' =
         case expected of
-          Min min ->
+          Min min' ->
             "arity mismatch;\nthe expected number of arguments does not match the given number" ++
-            "\nexpected: at least " ++ show min ++ "\ngiven: " ++ show found
-          MinMax min max ->
+            "\nexpected: at least " ++ show min' ++ "\ngiven: " ++ show found
+          MinMax min' max' ->
             "arity mismatch;\nthe expected number of arguments does not match the given number" ++
             "\nexpected: " ++
-            (if min == max
-               then show min
-               else "between " ++ show min ++ " and " ++ show max) ++
+            (if min' == max'
+               then show min'
+               else "between " ++ show min' ++ " and " ++ show max') ++
             "\ngiven: " ++ show found
       argsError =
         case args of
           [] -> ""
           a -> "\narguments:\n" ++ unwordsList a
-  in error ++ argsError
+  in error' ++ argsError
 showError (TypeMismatch expected found) =
   "Invalid type: expected " ++ expected ++ ", found " ++ show found
 showError (Parser parseErr) = "Parse error at " ++ show parseErr

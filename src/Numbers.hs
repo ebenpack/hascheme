@@ -1,6 +1,6 @@
 module Numbers where
 
-import Control.Monad.Except
+import Control.Monad.Except (throwError)
 import Data.Complex
 import Data.Ratio
 import DataTypes
@@ -153,6 +153,7 @@ numToInt (Complex a) =
   in if imagPart a == 0 && rp == fromInteger (round rp)
        then return $ Integer (round rp)
        else throwError $ Default "Could not convert complex to integer"
+numToInt _ = throwError $ Default "Could not convert non-number to integer"
 
 numCast :: [LispVal] -> ThrowsError LispVal
 numCast [a@(Integer _), b@(Integer _)] = return $ List [a, b]
@@ -192,21 +193,23 @@ numCast [a, b] =
 numCast _ = throwError $ Default "Unexpected error in numCast"
 
 numBoolBinop ::
-     (LispVal -> LispVal -> ThrowsError LispVal)
+     String
+  -> (LispVal -> LispVal -> ThrowsError LispVal)
   -> LispVal
   -> [LispVal]
   -> ThrowsError LispVal
-numBoolBinop op b (c:d) = do
+numBoolBinop name' op b (c:d) = do
   List [b', c'] <- numCast [b, c]
   result <- op b' c'
   case result of
-    Bool True -> numBoolBinop op c' d
+    Bool True -> numBoolBinop name' op c' d
     Bool False -> return $ Bool False
-numBoolBinop _ _ _ = return $ Bool True
+    _ -> throwError $ Default $ "Unexpected error in " ++ name'
+numBoolBinop _ _ _ _ = return $ Bool True
 
 numBoolBinopEq :: [LispVal] -> ThrowsError LispVal
 numBoolBinopEq [] = throwError $ NumArgs (Min 1) 0 []
-numBoolBinopEq (x:xs) = numBoolBinop fn x xs
+numBoolBinopEq (x:xs) = numBoolBinop "=" fn x xs
   where
     fn :: LispVal -> LispVal -> ThrowsError LispVal
     fn (Integer c) (Integer d) = return $ Bool (c == d)
@@ -217,7 +220,7 @@ numBoolBinopEq (x:xs) = numBoolBinop fn x xs
 
 numBoolBinopNeq :: [LispVal] -> ThrowsError LispVal
 numBoolBinopNeq [] = throwError $ NumArgs (Min 1) 0 []
-numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
+numBoolBinopNeq (x:xs) = numBoolBinop "/=" fn x xs
   where
     fn :: LispVal -> LispVal -> ThrowsError LispVal
     fn (Integer c) (Integer d) = return $ Bool (c /= d)
@@ -228,49 +231,49 @@ numBoolBinopNeq (x:xs) = numBoolBinop fn x xs
 
 numBoolBinopLt :: [LispVal] -> ThrowsError LispVal
 numBoolBinopLt [] = throwError $ NumArgs (Min 1) 0 []
-numBoolBinopLt (x:xs) = numBoolBinop fn x xs
+numBoolBinopLt (x:xs) = numBoolBinop "<" fn x xs
   where
     fn :: LispVal -> LispVal -> ThrowsError LispVal
     fn (Integer c) (Integer d) = return $ Bool (c < d)
     fn (Rational c) (Rational d) = return $ Bool (c < d)
     fn (Float c) (Float d) = return $ Bool (c < d)
-    fn (Complex c) (Complex d) =
+    fn (Complex _) (Complex _) =
       throwError $ Default "< not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in <"
 
 numBoolBinopLte :: [LispVal] -> ThrowsError LispVal
 numBoolBinopLte [] = throwError $ NumArgs (Min 1) 0 []
-numBoolBinopLte (x:xs) = numBoolBinop fn x xs
+numBoolBinopLte (x:xs) = numBoolBinop "<=" fn x xs
   where
     fn :: LispVal -> LispVal -> ThrowsError LispVal
     fn (Integer c) (Integer d) = return $ Bool (c <= d)
     fn (Rational c) (Rational d) = return $ Bool (c <= d)
     fn (Float c) (Float d) = return $ Bool (c <= d)
-    fn (Complex c) (Complex d) =
+    fn (Complex _) (Complex _) =
       throwError $ Default "<= not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in <="
 
 numBoolBinopGt :: [LispVal] -> ThrowsError LispVal
 numBoolBinopGt [] = throwError $ NumArgs (Min 1) 0 []
-numBoolBinopGt (x:xs) = numBoolBinop fn x xs
+numBoolBinopGt (x:xs) = numBoolBinop ">" fn x xs
   where
     fn :: LispVal -> LispVal -> ThrowsError LispVal
     fn (Integer c) (Integer d) = return $ Bool (c > d)
     fn (Rational c) (Rational d) = return $ Bool (c > d)
     fn (Float c) (Float d) = return $ Bool (c > d)
-    fn (Complex c) (Complex d) =
+    fn (Complex _) (Complex _) =
       throwError $ Default "> not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in >"
 
 numBoolBinopGte :: [LispVal] -> ThrowsError LispVal
 numBoolBinopGte [] = throwError $ NumArgs (Min 1) 0 []
-numBoolBinopGte (x:xs) = numBoolBinop fn x xs
+numBoolBinopGte (x:xs) = numBoolBinop ">=" fn x xs
   where
     fn :: LispVal -> LispVal -> ThrowsError LispVal
     fn (Integer c) (Integer d) = return $ Bool (c >= d)
     fn (Rational c) (Rational d) = return $ Bool (c >= d)
     fn (Float c) (Float d) = return $ Bool (c >= d)
-    fn (Complex c) (Complex d) =
+    fn (Complex _) (Complex _) =
       throwError $ Default ">= not defined for complex numbers"
     fn _ _ = throwError $ Default "Unexpected error in >="
 

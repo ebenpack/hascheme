@@ -1,6 +1,5 @@
 module ParserCombinators
   ( ParseError(..)
-  , ParseResult(..)
   , Parser(..)
   , failure
   , item
@@ -54,6 +53,7 @@ instance Monad Parser where
       case parse p inp of
         Left (err, _) -> Left (err, inp)
         Right [(v, out)] -> parse (f v) out
+        _ -> Left (ParseError "Error", [])
 
 instance Functor Parser where
   fmap = liftM
@@ -67,7 +67,7 @@ failure s =
   Parser $ \s1 ->
     case s1 of
       [] -> Left (ParseError s, [])
-      (x:xs) -> Left (ParseError s, s1)
+      (_:_) -> Left (ParseError s, s1)
 
 item :: Parser Char
 item =
@@ -82,6 +82,7 @@ p <|> q =
     case parse p inp of
       Left _ -> parse q inp
       Right [(v, out)] -> Right [(v, out)]
+      _ -> Left (ParseError "Error", [])
 
 many' :: Parser a -> Parser [a]
 many' p = many1 p <|> return []
@@ -94,12 +95,12 @@ many1 p = do
 
 skipMany :: Parser a -> Parser ()
 skipMany p = do
-  many' p
+  _ <- many' p
   return ()
 
 skipMany1 :: Parser a -> Parser ()
 skipMany1 p = do
-  many1 p
+  _ <- many1 p
   return ()
 
 skipUntil :: Parser t -> Parser a -> Parser ()
@@ -107,10 +108,10 @@ skipUntil end p = do
   scan
   where
     scan =
-      do end
+      do _ <- end
          return ()
      <|> do
-        p
+        _ <- p
         scan
         return ()
 
@@ -122,7 +123,7 @@ oneOf (x:xs) = do
 
 noneOf :: String -> Parser Char
 noneOf [] = item
-noneOf (x:xs) = do
+noneOf (x:_) = do
   y <- notChar x
   return y
   where
@@ -139,7 +140,7 @@ endBy :: Parser a -> Parser b -> Parser [a]
 endBy p sep =
   many' $ do
     x <- p
-    sep
+    _ <- sep
     return x
 
 try :: Parser a -> Parser a
@@ -148,6 +149,7 @@ try p =
     case parse p s of
       Left (err, _) -> Left (err, s)
       Right [(a, s1)] -> Right [(a, s1)]
+      _ -> Left (ParseError "Error", [])
 
 sat :: (Char -> Bool) -> Parser Char
 sat p =
@@ -197,6 +199,6 @@ char x = sat (== x)
 string :: String -> Parser String
 string [] = return []
 string (x:xs) = do
-  char x
-  string xs
+  _ <- char x
+  _ <- string xs
   return (x : xs)

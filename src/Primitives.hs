@@ -57,6 +57,7 @@ eqv [(List arg1), (List arg2)] =
       case eqv [x1, x2] of
         Left _ -> False
         Right (Bool val) -> val
+        Right _ -> False
 eqv [_, _] = return $ Bool False
 eqv badArgList =
   throwError $ NumArgs (MinMax 2 2) (length badArgList) badArgList
