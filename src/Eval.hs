@@ -312,6 +312,9 @@ load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
 readAll :: [LispVal] -> IOThrowsError LispVal
 readAll [String filename] = liftM List $ load filename
 
+runIOThrows :: IOThrowsError String -> IO String
+runIOThrows action = runExceptT (trapError action) >>= return . extractValue
+
 flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
@@ -327,22 +330,12 @@ readExpr = readOrThrow parseExpr
 readExprList :: String -> ThrowsError [LispVal]
 readExprList = readOrThrow (endBy parseExpr (skipMany space))
 
-readPrompt :: String -> IO String
-readPrompt prompt = flushStr prompt >> getLine
-
 evalAndPrint :: Env -> String -> IO ()
 evalAndPrint env expr = evalString env expr >>= putStrLn
 
 evalString :: Env -> String -> IO String
 evalString env expr =
   runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
-
-until_ :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
-until_ pred' prompt action = do
-  result <- prompt
-  if pred' result
-    then return ()
-    else action result >> until_ pred' prompt action
 
 runOne :: [String] -> IO ()
 runOne args = do
@@ -379,10 +372,3 @@ runRepl = do
         Just input -> do
           lift $ evalAndPrint env input
           repl env
-
--- runRepl :: IO ()
--- runRepl = do
---   env <- primitiveBindings
---   loadStdLib env >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
-runIOThrows :: IOThrowsError String -> IO String
-runIOThrows action = runExceptT (trapError action) >>= return . extractValue
