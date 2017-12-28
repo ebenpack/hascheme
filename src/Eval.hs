@@ -1,5 +1,6 @@
 module Eval where
 
+import Control.Exception (bracket)
 import Control.Monad.Except
 import Data.Complex
 import Data.IORef
@@ -11,6 +12,7 @@ import Parse
 import ParserCombinators
 import Paths_hascheme (getDataFileName)
 import Primitives (eqv, primitives)
+import System.Console.Haskeline
 import System.IO
 
 evalList :: Env -> [LispVal] -> IOThrowsError LispVal
@@ -364,10 +366,23 @@ runOne args = do
     printable Void = False
     printable _ = True
 
-runRepl :: IO ()
+runRepl :: InputT IO ()
 runRepl = do
-  env <- primitiveBindings
-  loadStdLib env >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
+  env <- lift $ primitiveBindings >>= loadStdLib
+  repl env
+  where
+    repl env = do
+      minput <- getInputLine "Lisp>>> "
+      case minput of
+        Nothing -> return ()
+        Just "quit" -> return ()
+        Just input -> do
+          lift $ evalAndPrint env input
+          repl env
 
+-- runRepl :: IO ()
+-- runRepl = do
+--   env <- primitiveBindings
+--   loadStdLib env >>= until_ (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
 runIOThrows :: IOThrowsError String -> IO String
 runIOThrows action = runExceptT (trapError action) >>= return . extractValue
