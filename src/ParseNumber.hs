@@ -7,15 +7,20 @@ import DataTypes (LispVal(..))
 
 import Numeric (readDec, readHex, readInt, readOct)
 import ParserCombinators
-       (Parser(..), (<|>), char, digit, hexDigit, many1, octDigit, oneOf,
-        parse, skipMany1, try)
+       (Parser(..), (<|>), char, digit, hexDigit, many1, octDigit, oneOf)
+
+readBinary :: ReadS Integer
+readBinary = readInt 2 (`elem` "01") digitToInt
 
 parseNumber :: Parser LispVal
 parseNumber = parseComplex <|> parseRational <|> parseFloat <|> parseInteger
 
+--------------
+-- Integer
+--------------
 parseInteger :: Parser LispVal
 parseInteger =
-  parseDecimal <|> do
+  parseIntegerDecimal <|> do
     char '#'
     base <- oneOf "bdox"
     parseIntegerBase base
@@ -23,11 +28,35 @@ parseInteger =
 parseIntegerBase :: Char -> Parser LispVal
 parseIntegerBase base =
   case base of
-    'd' -> parseDecimal
-    'o' -> parseOctal
-    'x' -> parseHex
-    'b' -> parseBinary
+    'd' -> parseIntegerDecimal
+    'o' -> parseIntegerOctal
+    'x' -> parseIntegerHex
+    'b' -> parseIntegerBinary
 
+parseIntegerHelper :: ReadS Integer -> Parser Char -> Parser LispVal
+parseIntegerHelper reader parser =
+  (char '-' >> (parseIntegerHelper' negate)) <|>
+  (char '+' >> (parseIntegerHelper' id)) <|>
+  (parseIntegerHelper' id)
+  where
+    parseIntegerHelper' :: (Integer -> Integer) -> Parser LispVal
+    parseIntegerHelper' op = Number . op . fst . head . reader <$> many1 parser
+
+parseIntegerDecimal :: Parser LispVal
+parseIntegerDecimal = parseIntegerHelper readDec digit
+
+parseIntegerOctal :: Parser LispVal
+parseIntegerOctal = parseIntegerHelper readOct octDigit
+
+parseIntegerHex :: Parser LispVal
+parseIntegerHex = parseIntegerHelper readHex hexDigit
+
+parseIntegerBinary :: Parser LispVal
+parseIntegerBinary = parseIntegerHelper readBinary (oneOf "01")
+
+--------------
+-- Float
+--------------
 parseFloat :: Parser LispVal
 parseFloat =
   parseFloatDecimal <|> do
@@ -43,55 +72,17 @@ parseFloatBase base =
     'x' -> parseFloatHex
     'b' -> parseFloatBinary
 
-parseComplex :: Parser LispVal
-parseComplex =
-  parseComplexDecimal <|> do
-    char '#'
-    base <- oneOf "bdox"
-    parseComplexBase base
+parseFloatDecimal :: Parser LispVal
+parseFloatDecimal = parseFloatHelper 10 digit readDec
 
-parseComplexBase :: Char -> Parser LispVal
-parseComplexBase base =
-  case base of
-    'd' -> parseComplexDecimal
-    'o' -> parseComplexOctal
-    'x' -> parseComplexHex
-    'b' -> parseComplexBinary
+parseFloatOctal :: Parser LispVal
+parseFloatOctal = parseFloatHelper 8 octDigit readOct
 
-parseRational :: Parser LispVal
-parseRational =
-  parseRationalDecimal <|> do
-    char '#'
-    base <- oneOf "bdox"
-    parseRationalBase base
+parseFloatBinary :: Parser LispVal
+parseFloatBinary = parseFloatHelper 2 (oneOf "01") readBinary
 
-parseRationalBase :: Char -> Parser LispVal
-parseRationalBase base =
-  case base of
-    'd' -> parseRationalDecimal
-    'o' -> parseRationalOctal
-    'x' -> parseRationalHex
-    'b' -> parseRationalBinary
-
-parseHelper :: ReadS Integer -> Parser Char -> Parser LispVal
-parseHelper reader parser =
-  (char '-' >> (parseHelper' negate)) <|> (char '+' >> (parseHelper' id)) <|>
-  (parseHelper' id)
-  where
-    parseHelper' :: (Integer -> Integer) -> Parser LispVal
-    parseHelper' op = Number . op . fst . head . reader <$> many1 parser
-
-parseDecimal :: Parser LispVal
-parseDecimal = parseHelper readDec digit
-
-parseOctal :: Parser LispVal
-parseOctal = parseHelper readOct octDigit
-
-parseHex :: Parser LispVal
-parseHex = parseHelper readHex hexDigit
-
-parseBinary :: Parser LispVal
-parseBinary = parseHelper readBinary (oneOf "01")
+parseFloatHex :: Parser LispVal
+parseFloatHex = parseFloatHelper 16 hexDigit readHex
 
 parseFloatHelper :: Int -> Parser Char -> (ReadS Integer) -> Parser LispVal
 parseFloatHelper base p reader =
@@ -119,6 +110,40 @@ parseFloatHelper base p reader =
           decimal = fst . head $ reader d
       return $ Float $ (op (helper whole decimal))
 
+--------------
+-- Complex
+--------------
+parseComplex :: Parser LispVal
+parseComplex =
+  parseComplexDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    parseComplexBase base
+
+parseComplexBase :: Char -> Parser LispVal
+parseComplexBase base =
+  case base of
+    'd' -> parseComplexDecimal
+    'o' -> parseComplexOctal
+    'x' -> parseComplexHex
+    'b' -> parseComplexBinary
+
+parseComplexDecimal :: Parser LispVal
+parseComplexDecimal =
+  parseComplexHelper parseIntegerDecimal parseFloatDecimal parseRationalDecimal
+
+parseComplexOctal :: Parser LispVal
+parseComplexOctal =
+  parseComplexHelper parseIntegerOctal parseFloatOctal parseRationalOctal
+
+parseComplexHex :: Parser LispVal
+parseComplexHex =
+  parseComplexHelper parseIntegerHex parseFloatHex parseRationalHex
+
+parseComplexBinary :: Parser LispVal
+parseComplexBinary =
+  parseComplexHelper parseIntegerBinary parseFloatBinary parseRationalBinary
+
 parseComplexHelper ::
      Parser LispVal -> Parser LispVal -> Parser LispVal -> Parser LispVal
 parseComplexHelper pn pf pr = do
@@ -131,6 +156,24 @@ parseComplexHelper pn pf pr = do
     toDouble (Number x) = fromIntegral x
     toDouble (Rational x) = fromRational x
 
+--------------
+-- Rational
+--------------
+parseRational :: Parser LispVal
+parseRational =
+  parseRationalDecimal <|> do
+    char '#'
+    base <- oneOf "bdox"
+    parseRationalBase base
+
+parseRationalBase :: Char -> Parser LispVal
+parseRationalBase base =
+  case base of
+    'd' -> parseRationalDecimal
+    'o' -> parseRationalOctal
+    'x' -> parseRationalHex
+    'b' -> parseRationalBinary
+
 parseRationalHelper :: Parser LispVal -> Parser LispVal
 parseRationalHelper p = do
   num <- fmap toInt p
@@ -141,43 +184,13 @@ parseRationalHelper p = do
     toInt (Number x) = x
 
 parseRationalDecimal :: Parser LispVal
-parseRationalDecimal = parseRationalHelper parseDecimal
+parseRationalDecimal = parseRationalHelper parseIntegerDecimal
 
 parseRationalOctal :: Parser LispVal
-parseRationalOctal = parseRationalHelper parseOctal
+parseRationalOctal = parseRationalHelper parseIntegerOctal
 
 parseRationalHex :: Parser LispVal
-parseRationalHex = parseRationalHelper parseHex
+parseRationalHex = parseRationalHelper parseIntegerHex
 
 parseRationalBinary :: Parser LispVal
-parseRationalBinary = parseRationalHelper parseBinary
-
-parseComplexDecimal :: Parser LispVal
-parseComplexDecimal =
-  parseComplexHelper parseDecimal parseFloatDecimal parseRationalDecimal
-
-parseComplexOctal :: Parser LispVal
-parseComplexOctal =
-  parseComplexHelper parseOctal parseFloatOctal parseRationalOctal
-
-parseComplexHex :: Parser LispVal
-parseComplexHex = parseComplexHelper parseHex parseFloatHex parseRationalHex
-
-parseComplexBinary :: Parser LispVal
-parseComplexBinary =
-  parseComplexHelper parseBinary parseFloatBinary parseRationalBinary
-
-parseFloatDecimal :: Parser LispVal
-parseFloatDecimal = parseFloatHelper 10 digit readDec
-
-parseFloatOctal :: Parser LispVal
-parseFloatOctal = parseFloatHelper 8 octDigit readOct
-
-parseFloatBinary :: Parser LispVal
-parseFloatBinary = parseFloatHelper 2 (oneOf "01") readBinary
-
-parseFloatHex :: Parser LispVal
-parseFloatHex = parseFloatHelper 16 hexDigit readHex
-
-readBinary :: ReadS Integer
-readBinary = readInt 2 (`elem` "01") digitToInt
+parseRationalBinary = parseRationalHelper parseIntegerBinary
