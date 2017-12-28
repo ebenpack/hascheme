@@ -45,7 +45,7 @@ isChar _ = return $ Bool False
 
 eqv :: [LispVal] -> ThrowsError LispVal
 eqv [(Bool arg1), (Bool arg2)] = return $ Bool $ arg1 == arg2
-eqv [(Number arg1), (Number arg2)] = return $ Bool $ arg1 == arg2
+eqv [(Integer arg1), (Integer arg2)] = return $ Bool $ arg1 == arg2
 eqv [(String arg1), (String arg2)] = return $ Bool $ arg1 == arg2
 eqv [(Atom arg1), (Atom arg2)] = return $ Bool $ arg1 == arg2
 eqv [(DottedList xs x), (DottedList ys y)] =

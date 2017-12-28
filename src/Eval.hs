@@ -24,10 +24,10 @@ eval :: Env -> LispVal -> IOThrowsError LispVal
 eval _ val@(Void) = return val
 eval _ val@(String _) = return val
 eval _ val@(Character _) = return val
-eval _ val@(Number _) = return val
+eval _ val@(Integer _) = return val
 eval _ (Rational val) =
   if denominator val == 1
-    then return $ Number $ numerator val
+    then return $ Integer $ numerator val
     else return $ Rational val
 eval _ val@(Float _) = return val
 eval _ (Complex val) =

@@ -38,7 +38,7 @@ data LispVal
   | List [LispVal]
   | DottedList [LispVal]
                LispVal
-  | Number Integer -- Integer
+  | Integer Integer -- Integer
   | Rational Rational -- Rational
   | Float Double -- Real
   | Complex (Complex Double) -- Complex
@@ -71,7 +71,7 @@ unwordsList = unwords . map showVal
 showVal :: LispVal -> String
 showVal (String contents) = "\"" ++ contents ++ "\""
 showVal (Atom name') = name'
-showVal (Number contents) = show contents
+showVal (Integer contents) = show contents
 showVal (Rational contents) =
   show (numerator contents) ++ "/" ++ show (denominator contents)
 showVal (Float contents) = show contents

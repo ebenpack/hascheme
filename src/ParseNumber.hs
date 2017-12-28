@@ -40,7 +40,7 @@ parseIntegerHelper reader parser =
   (parseIntegerHelper' id)
   where
     parseIntegerHelper' :: (Integer -> Integer) -> Parser LispVal
-    parseIntegerHelper' op = Number . op . fst . head . reader <$> many1 parser
+    parseIntegerHelper' op = Integer . op . fst . head . reader <$> many1 parser
 
 parseIntegerDecimal :: Parser LispVal
 parseIntegerDecimal = parseIntegerHelper readDec digit
@@ -153,7 +153,7 @@ parseComplexHelper pn pf pr = do
   return $ Complex (real :+ imaginary)
   where
     toDouble (Float x) = x
-    toDouble (Number x) = fromIntegral x
+    toDouble (Integer x) = fromIntegral x
     toDouble (Rational x) = fromRational x
 
 --------------
@@ -181,7 +181,7 @@ parseRationalHelper p = do
   denom <- fmap toInt p
   return $ Rational (num % denom)
   where
-    toInt (Number x) = x
+    toInt (Integer x) = x
 
 parseRationalDecimal :: Parser LispVal
 parseRationalDecimal = parseRationalHelper parseIntegerDecimal

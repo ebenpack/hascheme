@@ -18,13 +18,13 @@ isString [String _] = return $ Bool True
 isString _ = return $ Bool False
 
 makeString :: PrimitiveFunc
-makeString [n@(Number _)] = makeString [n, Character $ chr 0]
-makeString [Number n, Character c] =
+makeString [n@(Integer _)] = makeString [n, Character $ chr 0]
+makeString [Integer n, Character c] =
   return $ String $ take (fromIntegral n) $ repeat c
 makeString _ = throwError $ Default "Invalid arguments to `make-string`"
 
 strLen :: PrimitiveFunc
-strLen [String s] = return $ Number $ fromIntegral $ length s
+strLen [String s] = return $ Integer $ fromIntegral $ length s
 strLen (_:_) = throwError $ Default "Invalid arguments to `string-length`"
 strLen _ = throwError $ Default "Invalid arguments to `string-length`"
 
