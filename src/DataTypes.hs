@@ -94,7 +94,7 @@ showVal (Bool False) = "#f"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
 showVal (DottedList h t) = "(" ++ unwordsList h ++ " . " ++ showVal t ++ ")"
 showVal (PrimitiveFunc name' _) = "#<procedure:" ++ name' ++ ">"
-showVal (Func {name = name'}) = "#<procedure:" ++ name' ++ ">"
+showVal Func {name = name'} = "#<procedure:" ++ name' ++ ">"
 showVal (Port _) = "<IO port>"
 showVal (IOFunc name' _) = "#<IO primitive:" ++ name' ++ ">"
 showVal Void = ""
@@ -126,6 +126,7 @@ showError (TypeMismatch expected found) =
   "Invalid type: expected " ++ expected ++ ", found " ++ show found
 showError (Parser parseErr) = "Parse error at " ++ show parseErr
 
+trapError :: (Show a, MonadError a m) => m String -> m String
 trapError action = catchError action (return . show)
 
 extractValue :: ThrowsError a -> a

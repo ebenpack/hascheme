@@ -22,7 +22,7 @@ numAdd a = foldlM (\b c -> doAdd =<< (numCast [b, c])) (Integer 0) a
     doAdd (List [Integer c, Integer d]) = return $ Integer (c + d)
     doAdd (List [Rational c, Rational d]) = return $ Rational (c + d)
     doAdd (List [Float c, Float d]) = return $ Float (c + d)
-    doAdd (List [Complex (c), Complex (d)]) = return $ Complex (c + d)
+    doAdd (List [Complex c, Complex d]) = return $ Complex (c + d)
     doAdd _ = throwError $ Default "Unexpected error in +"
 
 numSub :: PrimitiveFunc
@@ -292,13 +292,12 @@ unaryTrig ::
 unaryTrig op complexOp args =
   if length args /= 1
     then throwError $ NumArgs (MinMax 1 1) (length args) args
-    else do
-      case args of
-        [Integer a] -> return $ Float (op $ fromInteger a)
-        [Rational a] -> return $ Float (op $ fromRational a)
-        [Float a] -> return $ Float (op a)
-        [Complex a] -> return $ Complex $ complexOp (realPart a) (imagPart a)
-        _ -> throwError $ Default "Numerical input expected"
+    else case args of
+           [Integer a] -> return $ Float (op $ fromInteger a)
+           [Rational a] -> return $ Float (op $ fromRational a)
+           [Float a] -> return $ Float (op a)
+           [Complex a] -> return $ Complex $ complexOp (realPart a) (imagPart a)
+           _ -> throwError $ Default "Numerical input expected"
 
 numSine :: PrimitiveFunc
 numSine = unaryTrig sin (\r i -> ((sin r) * (cosh i)) :+ ((cos r) * (sinh i)))

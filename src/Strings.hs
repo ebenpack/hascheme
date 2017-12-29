@@ -20,7 +20,7 @@ isString _ = return $ Bool False
 makeString :: PrimitiveFunc
 makeString [n@(Integer _)] = makeString [n, Character $ chr 0]
 makeString [Integer n, Character c] =
-  return $ String $ take (fromIntegral n) $ repeat c
+  return $ String $ replicate (fromIntegral n) c
 makeString _ = throwError $ Default "Invalid arguments to `make-string`"
 
 strLen :: PrimitiveFunc

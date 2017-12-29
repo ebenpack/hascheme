@@ -46,19 +46,17 @@ accessors =
   replicateM 2 ['a', 'd'] ++ replicateM 3 ['a', 'd'] ++ replicateM 4 ['a', 'd']
   where
     makeAccessor :: String -> PrimitiveFunc
-    makeAccessor str =
+    makeAccessor =
       foldr
         (\chr acc ->
            if chr == 'a'
              then comp acc car
              else comp acc cdr)
         identity
-        str
     comp :: PrimitiveFunc -> PrimitiveFunc -> PrimitiveFunc
-    comp a b =
-      (\c -> do
-         d <- a c
-         b [d])
+    comp a b c = do
+      d <- a c
+      b [d]
     identity :: PrimitiveFunc
     identity [n] = return n
     identity a = return $ List a

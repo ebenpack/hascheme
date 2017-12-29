@@ -104,8 +104,7 @@ skipMany1 p = do
   return ()
 
 skipUntil :: Parser t -> Parser a -> Parser ()
-skipUntil end p = do
-  scan
+skipUntil end p = scan
   where
     scan =
       do _ <- end
@@ -117,17 +116,11 @@ skipUntil end p = do
 
 oneOf :: String -> Parser Char
 oneOf [] = failure "Empty input to 'OneOf'"
-oneOf (x:xs) = do
-  y <- char x <|> oneOf xs
-  return y
+oneOf (x:xs) = char x <|> oneOf xs
 
 noneOf :: String -> Parser Char
 noneOf [] = item
-noneOf (x:_) = do
-  y <- notChar x
-  return y
-  where
-    notChar c = rej (== c)
+noneOf (x:_) = rej (== x)
 
 sepBy :: Parser a -> Parser b -> Parser [a]
 sepBy p sep =

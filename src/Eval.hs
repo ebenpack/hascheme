@@ -1,33 +1,30 @@
 module Eval where
 
-import           Control.Monad.Except
-import           Data.Complex
-import           Data.IORef
-import           Data.Ratio
-import           DataTypes                (Arity (..), Bindings, Env,
-                                           EnvFrame (..), IOThrowsError,
-                                           LispError (..), LispVal (..),
-                                           PrimitiveFunc, ThrowsError,
-                                           extractValue, showVal, trapError)
-import           Parse
-import           ParserCombinators
-import           Paths_hascheme           (getDataFileName)
-import           Primitives               (eqv, primitives)
-import           System.Console.Haskeline
-import           System.IO
+import Control.Monad.Except
+import Data.Complex
+import Data.IORef
+import Data.Maybe (isNothing)
+import Data.Ratio
+import DataTypes
+       (Arity(..), Env, EnvFrame(..), IOThrowsError, LispError(..),
+        LispVal(..), PrimitiveFunc, ThrowsError, extractValue, showVal,
+        trapError)
+import Parse
+import ParserCombinators
+import Paths_hascheme (getDataFileName)
+import Primitives (eqv, primitives)
+import System.Console.Haskeline
+import System.IO
 
 liftThrows :: ThrowsError a -> IOThrowsError a
-liftThrows (Left err)  = throwError err
+liftThrows (Left err) = throwError err
 liftThrows (Right val) = return val
 
 --------------
 -- Eval
 --------------
 eval :: Env -> LispVal -> IOThrowsError LispVal
--- eval env (List [Atom "dump"]) = do
---   env' <- liftIO $ readIORef env
---   return $ String $ show (map (\(a, b) -> a) env')
-eval _ val@(Void) = return val
+eval _ val@Void = return val
 eval _ val@(String _) = return val
 eval _ val@(Character _) = return val
 eval _ val@(Integer _) = return val
@@ -47,7 +44,7 @@ eval env (List [Atom "if", pred', conseq, alt]) = do
   result <- eval env pred'
   case result of
     Bool False -> eval env alt
-    _          -> eval env conseq
+    _ -> eval env conseq
 eval env (List ((Atom "cond"):xs)) = evalCond xs
     -- TODO: [test-expr => proc-expr]
   where
@@ -63,7 +60,7 @@ eval env (List ((Atom "cond"):xs)) = evalCond xs
         _ ->
           case conseqs of
             [] -> return result
-            _  -> evalList env conseqs
+            _ -> evalList env conseqs
     evalCond a = throwError $ Default (show a)
 eval env (List ((Atom "case"):(key:clauses))) = do
   result <- eval env key
@@ -74,9 +71,9 @@ eval env (List ((Atom "case"):(key:clauses))) = do
     evalClauses key' (List (datum:exprs):rest) = do
       match <- liftThrows $ inList [key', datum]
       case match of
-        Bool True  -> evalList env exprs
+        Bool True -> evalList env exprs
         Bool False -> evalClauses key' rest
-        _          -> throwError $ Default "case: bad syntax"
+        _ -> throwError $ Default "case: bad syntax"
     evalClauses _ _ = throwError $ Default "case: bad syntax"
     inList :: PrimitiveFunc
     inList [_, List []] = return $ Bool False
@@ -84,7 +81,7 @@ eval env (List ((Atom "case"):(key:clauses))) = do
       eq <- eqv [x, key']
       case eq of
         Bool True -> return $ Bool $ True
-        _         -> inList [key, List xs]
+        _ -> inList [key, List xs]
     inList _ = throwError $ Default "case: bad syntax"
 eval _ (List ((Atom "case"):_)) =
   throwError $ Default "case: bad syntax in: (case)"
@@ -103,7 +100,7 @@ eval env (List (Atom "lambda":DottedList params' varargs:body')) =
   makeVarArgs "λ" varargs env params' body'
 eval env (List [Atom "let", List pairs, body']) = do
   List atoms <- getHeads pairs
-  _ <- mapM ensureAtom atoms
+  _ <- mapM_ ensureAtom atoms
   List vals <- getTails pairs
   vals' <- mapM (eval env) vals
   env' <-
@@ -112,7 +109,7 @@ eval env (List [Atom "let", List pairs, body']) = do
   eval env' body'
 eval env (List [Atom "let*", List pairs, body']) = do
   List atoms <- getHeads pairs
-  _ <- mapM ensureAtom atoms
+  _ <- mapM_ ensureAtom atoms
   List vals <- getTails pairs
   env' <- buildEnv env atoms vals
   eval env' body'
@@ -126,12 +123,12 @@ eval env (List [Atom "let*", List pairs, body']) = do
     buildEnv _ _ _ = throwError $ Default "let*: bad syntax"
 eval env (List [Atom "letrec", List pairs, body']) = do
   List atoms <- getHeads pairs
-  _ <- mapM ensureAtom atoms
+  _ <- mapM_ ensureAtom atoms
   List vals <- getTails pairs
   env' <- liftIO $ bindVars env (map (\a -> (extractVar a, Void)) atoms)
   vals' <- mapM (eval env') vals
   _ <-
-    mapM
+    mapM_
       (\(n, v) -> setVar env' n v)
       (Prelude.zipWith (\a b -> (extractVar a, b)) atoms vals')
   eval env' body'
@@ -139,18 +136,18 @@ eval env (List [Atom "or", expr1, expr2]) = do
   result <- eval env expr1
   case result of
     Bool True -> return result
-    _         -> eval env expr2
+    _ -> eval env expr2
 eval env (List [Atom "and", expr1, expr2]) = do
   result <- eval env expr1
   case result of
     Bool False -> return result
-    _          -> eval env expr2
+    _ -> eval env expr2
 eval env (List [Atom "load", String filename]) = do
   f <- load filename
-  _ <- mapM (eval env) f
+  _ <- mapM_ (eval env) f
   return Void
 eval env (List [Atom "load-print", String filename]) =
-  load filename >>= liftM List . mapM (eval env)
+  load filename >>= fmap List . mapM (eval env)
 eval env (List (function:args)) = do
   func <- eval env function
   argVals <- mapM (eval env) args
@@ -158,8 +155,8 @@ eval env (List (function:args)) = do
 eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
 evalList :: Env -> [LispVal] -> IOThrowsError LispVal
-evalList _ []       = return Void
-evalList env [a]    = eval env a
+evalList _ [] = return Void
+evalList env [a] = eval env a
 evalList env (y:ys) = eval env y >> evalList env ys
 
 getHeads :: [LispVal] -> IOThrowsError LispVal
@@ -178,7 +175,7 @@ getTails _ = throwError $ Default "Unexpected error in let"
 
 ensureAtom :: LispVal -> IOThrowsError LispVal
 ensureAtom n@(Atom _) = return n
-ensureAtom _          = throwError $ Default "Type error"
+ensureAtom _ = throwError $ Default "Type error"
 
 extractVar :: LispVal -> String
 extractVar (Atom atom) = atom
@@ -206,7 +203,7 @@ isBoundLocal :: EnvFrame -> String -> IO Bool
 isBoundLocal envFrame var =
   case lookup var (bindings envFrame) of
     Nothing -> return False
-    Just _  -> return True
+    Just _ -> return True
 
 isBound :: Env -> String -> IO Bool
 isBound envRef var = do
@@ -215,8 +212,8 @@ isBound envRef var = do
   if localBound
     then return True
     else case env of
-           Global _                -> return False
-           Frame {parent = parent} -> isBound parent var
+           Global _ -> return False
+           Frame {parent = parent'} -> isBound parent' var
 
 getVar :: Env -> String -> IOThrowsError LispVal
 getVar envRef var = do
@@ -226,7 +223,7 @@ getVar envRef var = do
     Nothing ->
       case envFrame of
         Global _ -> throwError $ UnboundVar "Getting an unbound variable" var
-        Frame {parent = parent} -> getVar parent var
+        Frame {parent = parent'} -> getVar parent' var
 
 setVar :: Env -> String -> LispVal -> IOThrowsError LispVal
 setVar envRef var value = do
@@ -238,7 +235,7 @@ setVar envRef var value = do
     Nothing ->
       case envFrame of
         Global _ -> throwError $ UnboundVar "Getting an unbound variable" var
-        Frame {parent = parent} -> setVar parent var value
+        Frame {parent = parent'} -> setVar parent' var value
 
 defineVar :: Env -> String -> LispVal -> IOThrowsError LispVal
 defineVar envRef var value = do
@@ -261,8 +258,8 @@ bindVars envRef bindings' = do
   newIORef extended
   where
     extendEnv :: [(String, LispVal)] -> Env -> IO EnvFrame
-    extendEnv bindings' env = do
-      newBindings <- liftIO $ mapM addBinding bindings'
+    extendEnv bindings'' env = do
+      newBindings <- liftIO $ mapM addBinding bindings''
       return $ Frame {parent = env, bindings = newBindings}
     addBinding (var, value) = do
       ref <- newIORef value
@@ -274,14 +271,14 @@ bindVars envRef bindings' = do
 apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
 apply (PrimitiveFunc _ func) args = liftThrows $ func args
 apply (Func _ params' varargs body' closure') args =
-  if num params' /= num args && varargs == Nothing
+  if num params' /= num args && isNothing varargs
     then throwError $ NumArgs (Min $ length params') (length args) args
     else (liftIO $ bindVars closure' $ zip params' args) >>= bindVarArgs varargs >>=
          evalBody
   where
     remainingArgs = drop (length params') args
     num = toInteger . length
-    evalBody env = liftM last $ mapM (eval env) body'
+    evalBody env = fmap last $ mapM (eval env) body'
     bindVarArgs arg env =
       case arg of
         Just argName -> liftIO $ bindVars env [(argName, List $ remainingArgs)]
@@ -308,6 +305,10 @@ primitiveBindings =
    map (makeFunc' IOFunc) ioPrimitives ++
    map (makeFunc' PrimitiveFunc) primitives)
   where
+    makeFunc' ::
+         (String -> ([LispVal] -> a) -> LispVal)
+      -> (String, ([LispVal] -> a))
+      -> (String, LispVal)
     makeFunc' constructor (var, func) = (var, constructor var func)
 
 loadStdLib :: Env -> IO Env
@@ -331,37 +332,37 @@ ioPrimitives =
 
 applyProc :: [LispVal] -> IOThrowsError LispVal
 applyProc [func, List args] = apply func args
-applyProc (func:args)       = apply func args
-applyProc _                 = throwError $ Default "applyProc error"
+applyProc (func:args) = apply func args
+applyProc _ = throwError $ Default "applyProc error"
 
 makePort :: IOMode -> [LispVal] -> IOThrowsError LispVal
-makePort mode [String filename] = liftM Port $ liftIO $ openFile filename mode
-makePort _ _                    = throwError $ Default "makePort error"
+makePort mode [String filename] = fmap Port $ liftIO $ openFile filename mode
+makePort _ _ = throwError $ Default "makePort error"
 
 closePort :: [LispVal] -> IOThrowsError LispVal
 closePort [Port port] = liftIO $ hClose port >> (return $ Bool True)
-closePort _           = return $ Bool False
+closePort _ = return $ Bool False
 
 readProc :: [LispVal] -> IOThrowsError LispVal
-readProc []          = readProc [Port stdin]
+readProc [] = readProc [Port stdin]
 readProc [Port port] = (liftIO $ hGetLine port) >>= liftThrows . readExpr
-readProc _           = throwError $ Default "readProc error"
+readProc _ = throwError $ Default "readProc error"
 
 writeProc :: [LispVal] -> IOThrowsError LispVal
-writeProc [obj]            = writeProc [obj, Port stdout]
+writeProc [obj] = writeProc [obj, Port stdout]
 writeProc [obj, Port port] = liftIO $ hPrint port obj >> (return $ Bool True)
-writeProc _                = throwError $ Default "writeProc error"
+writeProc _ = throwError $ Default "writeProc error"
 
 readContents :: [LispVal] -> IOThrowsError LispVal
-readContents [String filename] = liftM String $ liftIO $ readFile filename
-readContents _                 = throwError $ Default "readContents error"
+readContents [String filename] = fmap String $ liftIO $ readFile filename
+readContents _ = throwError $ Default "readContents error"
 
 load :: String -> IOThrowsError [LispVal]
 load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
 
 readAll :: [LispVal] -> IOThrowsError LispVal
-readAll [String filename] = liftM List $ load filename
-readAll _                 = throwError $ Default "readAll error"
+readAll [String filename] = fmap List $ load filename
+readAll _ = throwError $ Default "readAll error"
 
 --------------
 -- Run
@@ -373,9 +374,9 @@ runIOThrows action = runExceptT (trapError action) >>= return . extractValue
 readOrThrow :: Parser a -> String -> ThrowsError a
 readOrThrow parser input =
   case parse parser input of
-    Left (err, _)    -> throwError $ DataTypes.Parser err
+    Left (err, _) -> throwError $ DataTypes.Parser err
     Right [(val, _)] -> return val
-    _                -> throwError $ Default "Read error"
+    _ -> throwError $ Default "Read error"
 
 readExpr :: String -> ThrowsError LispVal
 readExpr = readOrThrow parseExpr
@@ -388,7 +389,7 @@ evalAndPrint env expr = evalString env expr >>= putStrLn
 
 evalString :: Env -> String -> IO String
 evalString env expr =
-  runIOThrows $ liftM show $ (liftThrows $ readExpr expr) >>= eval env
+  runIOThrows $ fmap show $ (liftThrows $ readExpr expr) >>= eval env
 
 runOne :: [String] -> IO ()
 runOne args = do
@@ -397,27 +398,28 @@ runOne args = do
     flip bindVars [("args", List $ map String $ drop 1 args)]
   _ <- loadStdLib env
   result <-
-    (runIOThrows $
-     liftM show' $ eval env (List [Atom "load-print", String (args !! 0)]))
+    runIOThrows $
+    fmap show' $ eval env (List [Atom "load-print", String (args !! 0)])
   putStrLn result
   where
     show' :: LispVal -> String
     show' (List contents) = unwordsList' contents
-    show' _               = ""
+    show' _ = ""
     unwordsList' :: [LispVal] -> String
     unwordsList' = unlines . map showValNewline . filter printable
     showValNewline :: LispVal -> String
     showValNewline Void = ""
-    showValNewline v    = showVal v
+    showValNewline v = showVal v
     printable :: LispVal -> Bool
     printable Void = False
-    printable _    = True
+    printable _ = True
 
 runRepl :: InputT IO ()
 runRepl = do
   env <- lift $ primitiveBindings >>= loadStdLib
   repl env
   where
+    repl :: Env -> InputT IO ()
     repl env = do
       minput <- getInputLine "Lisp>>> "
       case minput of

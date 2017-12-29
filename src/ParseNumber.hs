@@ -95,7 +95,7 @@ parseFloatHelper base p reader =
     helper :: Integer -> Integer -> Double
     helper whole decimal =
       if decimal == 0
-        then (fromIntegral whole)
+        then fromIntegral whole
         else let d = fromIntegral decimal :: Double
                  w = fromIntegral whole :: Double
                  b = fromIntegral base :: Double
