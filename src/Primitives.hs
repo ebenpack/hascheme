@@ -2,17 +2,22 @@ module Primitives where
 
 import Control.Monad.Except
 import DataTypes
-       (Arity(..), LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
+       (Arity(..), IOPrimitiveFunc, IOThrowsError, LispError(..),
+        LispVal(..), PrimitiveFunc, ThrowsError)
 import Lists (listPrimitives)
 import Numbers (numPrimitives)
 import Strings (strPrimitives)
+import System.IO
 import Util (boolBinop)
+import Util (liftThrows)
+import Vector (vectorPrimitives)
 
 primitives :: [(String, PrimitiveFunc)]
 primitives =
+  vectorPrimitives ++
+  listPrimitives ++
   numPrimitives ++
   strPrimitives ++
-  listPrimitives ++
   [ ("boolean?", isBoolean)
   , ("symbol?", isSymbol)
   , ("char?", isChar)
@@ -23,6 +28,19 @@ primitives =
   , ("equal?", eqv)
   ]
 
+ioPrimitives :: [(String, IOPrimitiveFunc)]
+ioPrimitives =
+  [ ("open-input-file", makePort ReadMode)
+  , ("open-output-file", makePort WriteMode)
+  , ("close-input-port", closePort)
+  , ("close-output-port", closePort)
+  , ("write", writeProc)
+  , ("read-contents", readContents)
+  ]
+
+--------------
+-- Primitives
+--------------
 boolBoolBinop :: (Bool -> Bool -> Bool) -> PrimitiveFunc
 boolBoolBinop = boolBinop unpackBool
 
@@ -63,3 +81,23 @@ eqv [(List arg1), (List arg2)] =
 eqv [_, _] = return $ Bool False
 eqv badArgList =
   throwError $ NumArgs (MinMax 2 2) (length badArgList) badArgList
+
+--------------
+-- IO Primitives
+--------------
+makePort :: IOMode -> IOPrimitiveFunc
+makePort mode [String filename] = fmap Port $ liftIO $ openFile filename mode
+makePort _ _ = throwError $ Default "makePort error"
+
+closePort :: IOPrimitiveFunc
+closePort [Port port] = liftIO $ hClose port >> (return $ Bool True)
+closePort _ = return $ Bool False
+
+writeProc :: IOPrimitiveFunc
+writeProc [obj] = writeProc [obj, Port stdout]
+writeProc [obj, Port port] = liftIO $ hPrint port obj >> (return $ Bool True)
+writeProc _ = throwError $ Default "writeProc error"
+
+readContents :: IOPrimitiveFunc
+readContents [String filename] = fmap String $ liftIO $ readFile filename
+readContents _ = throwError $ Default "readContents error"

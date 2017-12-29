@@ -1,8 +1,8 @@
 module Parse where
 
+import Data.Array
 import Data.Char (chr, toLower)
 import DataTypes (LispVal(..))
-
 import ParseNumber (parseNumber)
 import ParserCombinators
        (Parser, (<|>), char, digit, endBy, item, letter, many', many1,
@@ -12,7 +12,8 @@ import ParserCombinators
 -- TODO: Vector
 parseExpr :: Parser LispVal
 parseExpr =
-  parseComment <|> parseNumber <|> parseCharacter <|> parseAtom <|> parseString <|>
+  parseVector <|> parseComment <|> parseNumber <|> parseCharacter <|> parseAtom <|>
+  parseString <|>
   parseQuoted <|>
   parseLists
 
@@ -107,6 +108,21 @@ parseLists = do
       then char ')'
       else char ']'
   return x
+
+--------------
+-- Vector
+--------------
+parseVector :: Parser LispVal
+parseVector = do
+  _ <- char '#'
+  open <- char '(' <|> char '['
+  List list <- parseList
+  _ <-
+    if open == '('
+      then char ')'
+      else char ']'
+  let len = (length list) - 1
+  return $ Vector $ listArray (0, fromIntegral len) list
 
 --------------
 -- Quoted

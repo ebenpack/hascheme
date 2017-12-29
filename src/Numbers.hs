@@ -6,6 +6,30 @@ import Data.Ratio
 import DataTypes
        (Arity(..), LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
 
+numPrimitives :: [(String, PrimitiveFunc)]
+numPrimitives =
+  [ ("+", numAdd)
+  , ("-", numSub)
+  , ("*", numMul)
+  , ("/", numDiv)
+  , ("modulo", numMod)
+  , ("Integer?", isNumber)
+  , ("complex?", isComplex)
+  , ("real?", isReal)
+  , ("rational?", isRational)
+  , ("integer?", isInteger)
+  , ("=", numBoolBinopEq)
+  , ("/=", numBoolBinopNeq)
+  , (">", numBoolBinopGt)
+  , ("<", numBoolBinopLt)
+  , (">=", numBoolBinopGte)
+  , ("<=", numBoolBinopLte)
+  , ("quotient", numQuotient)
+  , ("remainder", numRem)
+  , ("sin", numSine)
+  , ("cos", numCos)
+  ]
+
 foldlM :: Monad m => (a -> b -> m a) -> a -> [b] -> m a
 foldlM f v (x:xs) = (f v x) >>= \a -> foldlM f a xs
 foldlM _ v [] = return v
@@ -305,27 +329,3 @@ numSine = unaryTrig sin (\r i -> ((sin r) * (cosh i)) :+ ((cos r) * (sinh i)))
 numCos :: PrimitiveFunc
 numCos =
   unaryTrig cos (\r i -> ((cos r) * (cosh i)) :+ (-1 * ((sin r) * (sinh i))))
-
-numPrimitives :: [(String, PrimitiveFunc)]
-numPrimitives =
-  [ ("+", numAdd)
-  , ("-", numSub)
-  , ("*", numMul)
-  , ("/", numDiv)
-  , ("modulo", numMod)
-  , ("Integer?", isNumber)
-  , ("complex?", isComplex)
-  , ("real?", isReal)
-  , ("rational?", isRational)
-  , ("integer?", isInteger)
-  , ("=", numBoolBinopEq)
-  , ("/=", numBoolBinopNeq)
-  , (">", numBoolBinopGt)
-  , ("<", numBoolBinopLt)
-  , (">=", numBoolBinopGte)
-  , ("<=", numBoolBinopLte)
-  , ("quotient", numQuotient)
-  , ("remainder", numRem)
-  , ("sin", numSine)
-  , ("cos", numCos)
-  ]

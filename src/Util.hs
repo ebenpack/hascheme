@@ -2,7 +2,7 @@ module Util where
 
 import Control.Monad.Except
 import DataTypes
-       (Arity(..), LispError(..), LispVal(..), ThrowsError)
+       (Arity(..), IOThrowsError, LispError(..), LispVal(..), ThrowsError)
 
 boolBinop ::
      (LispVal -> ThrowsError a)
@@ -16,3 +16,7 @@ boolBinop unpacker op args =
       left <- unpacker $ args !! 0
       right <- unpacker $ args !! 1
       return $ Bool $ left `op` right
+
+liftThrows :: ThrowsError a -> IOThrowsError a
+liftThrows (Left err) = throwError err
+liftThrows (Right val) = return val

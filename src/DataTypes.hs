@@ -1,6 +1,7 @@
 module DataTypes where
 
 import Control.Monad.Except
+import Data.Array
 import Data.Complex
 import Data.IORef
 import Data.Ratio
@@ -19,6 +20,8 @@ data EnvFrame
 type IOThrowsError = ExceptT LispError IO
 
 type PrimitiveFunc = ([LispVal] -> ThrowsError LispVal)
+
+type IOPrimitiveFunc = ([LispVal] -> IOThrowsError LispVal)
 
 type ThrowsError = Either LispError
 
@@ -41,7 +44,8 @@ instance Show LispError where
   show = showError
 
 data LispVal
-  = Atom String
+  = Vector (Array Integer LispVal)
+  | Atom String
   | List [LispVal]
   | DottedList [LispVal]
                LispVal
@@ -53,7 +57,7 @@ data LispVal
   | Character Char
   | Bool Bool
   | IOFunc String
-           ([LispVal] -> IOThrowsError LispVal)
+           IOPrimitiveFunc
   | Port Handle
   | PrimitiveFunc String
                   PrimitiveFunc
@@ -92,6 +96,7 @@ showVal (Character contents) = show contents
 showVal (Bool True) = "#t"
 showVal (Bool False) = "#f"
 showVal (List contents) = "(" ++ unwordsList contents ++ ")"
+showVal (Vector contents) = "#(" ++ unwordsList (elems contents) ++ ")"
 showVal (DottedList h t) = "(" ++ unwordsList h ++ " . " ++ showVal t ++ ")"
 showVal (PrimitiveFunc name' _) = "#<procedure:" ++ name' ++ ">"
 showVal Func {name = name'} = "#<procedure:" ++ name' ++ ">"

@@ -5,6 +5,16 @@ import Control.Monad.Except
 import DataTypes
        (Arity(..), LispError(..), LispVal(..), PrimitiveFunc)
 
+listPrimitives :: [(String, PrimitiveFunc)]
+listPrimitives =
+  [ ("pair?", isPair)
+  , ("car", car)
+  , ("cdr", cdr)
+  , ("cons", cons)
+  , ("empty?", empty)
+  ] ++
+  accessors
+
 car :: PrimitiveFunc
 car [DottedList (x:_) _] = return x
 car [List []] = throwError $ Default "Unexpected error in car"
@@ -60,13 +70,3 @@ accessors =
     identity :: PrimitiveFunc
     identity [n] = return n
     identity a = return $ List a
-
-listPrimitives :: [(String, PrimitiveFunc)]
-listPrimitives =
-  [ ("pair?", isPair)
-  , ("car", car)
-  , ("cdr", cdr)
-  , ("cons", cons)
-  , ("empty?", empty)
-  ] ++
-  accessors

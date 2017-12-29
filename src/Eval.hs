@@ -1,24 +1,23 @@
 module Eval where
 
 import Control.Monad.Except
+import Data.Array
 import Data.Complex
 import Data.IORef
 import Data.Maybe (isNothing)
 import Data.Ratio
 import DataTypes
-       (Arity(..), Env, EnvFrame(..), IOThrowsError, LispError(..),
-        LispVal(..), PrimitiveFunc, ThrowsError, extractValue, showVal,
-        trapError)
+       (Arity(..), Env, EnvFrame(..), IOPrimitiveFunc, IOThrowsError,
+        LispError(..), LispVal(..), PrimitiveFunc, ThrowsError,
+        extractValue, showVal, trapError)
 import Parse
 import ParserCombinators
 import Paths_hascheme (getDataFileName)
-import Primitives (eqv, primitives)
+import Primitives (eqv, ioPrimitives, primitives)
 import System.Console.Haskeline
 import System.IO
-
-liftThrows :: ThrowsError a -> IOThrowsError a
-liftThrows (Left err) = throwError err
-liftThrows (Right val) = return val
+import Util (liftThrows)
+import Vector (outOfBoundsError)
 
 --------------
 -- Eval
@@ -28,6 +27,7 @@ eval _ val@Void = return val
 eval _ val@(String _) = return val
 eval _ val@(Character _) = return val
 eval _ val@(Integer _) = return val
+eval _ val@(Vector _) = return val
 eval _ (Rational val) =
   if denominator val == 1
     then return $ Integer $ numerator val
@@ -48,7 +48,7 @@ eval env (List [Atom "if", pred', conseq, alt]) = do
 eval env (List ((Atom "cond"):xs)) = evalCond xs
     -- TODO: [test-expr => proc-expr]
   where
-    evalCond :: [LispVal] -> IOThrowsError LispVal
+    evalCond :: IOPrimitiveFunc
     evalCond [] = return Void
     evalCond [List (Atom "else":xs')] = evalList env xs'
     evalCond (List (Atom "else":_):_) =
@@ -66,7 +66,7 @@ eval env (List ((Atom "case"):(key:clauses))) = do
   result <- eval env key
   evalClauses result clauses
   where
-    evalClauses :: LispVal -> [LispVal] -> IOThrowsError LispVal
+    evalClauses :: LispVal -> IOPrimitiveFunc
     evalClauses _ [List []] = return Void
     evalClauses key' (List (datum:exprs):rest) = do
       match <- liftThrows $ inList [key', datum]
@@ -148,25 +148,35 @@ eval env (List [Atom "load", String filename]) = do
   return Void
 eval env (List [Atom "load-print", String filename]) =
   load filename >>= fmap List . mapM (eval env)
+eval env (List (Atom "vector-set!":args)) =
+  case args of
+    [Atom var, Integer n, v] -> do
+      Vector vec <- getVar env var
+      if n < (fromIntegral $ length vec)
+        then setVar env var $ Vector $ vec // [(n, v)]
+        else throwError $ outOfBoundsError "vector-ref" n vec
+    [a, b, c] ->
+      throwError $ TypeMismatch "vector, integer, integer" $ List [a, b, c]
+    a -> throwError $ NumArgs (MinMax 3 3) (length args) a
 eval env (List (function:args)) = do
   func <- eval env function
   argVals <- mapM (eval env) args
   apply func argVals
 eval _ badForm = throwError $ BadSpecialForm "Unrecognized special form" badForm
 
-evalList :: Env -> [LispVal] -> IOThrowsError LispVal
+evalList :: Env -> IOPrimitiveFunc
 evalList _ [] = return Void
 evalList env [a] = eval env a
 evalList env (y:ys) = eval env y >> evalList env ys
 
-getHeads :: [LispVal] -> IOThrowsError LispVal
+getHeads :: IOPrimitiveFunc
 getHeads [] = return $ List []
 getHeads (List (x:_):ys) = do
   List result <- getHeads ys
   return $ List (x : result)
 getHeads _ = throwError $ Default "Unexpected error in let"
 
-getTails :: [LispVal] -> IOThrowsError LispVal
+getTails :: IOPrimitiveFunc
 getTails [] = return $ List []
 getTails (List [_, xs]:ys) = do
   List result <- getTails ys
@@ -191,12 +201,10 @@ makeFunc ::
 makeFunc name' varargs env params' body' =
   return $ Func name' (map showVal params') varargs body' env
 
-makeNormalFunc ::
-     String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeNormalFunc :: String -> Env -> [LispVal] -> IOPrimitiveFunc
 makeNormalFunc name' = makeFunc name' Nothing
 
-makeVarArgs ::
-     String -> LispVal -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeVarArgs :: String -> LispVal -> Env -> [LispVal] -> IOPrimitiveFunc
 makeVarArgs name' = (makeFunc name') . Just . showVal
 
 isBoundLocal :: EnvFrame -> String -> IO Bool
@@ -231,7 +239,7 @@ setVar envRef var value = do
   case lookup var (bindings envFrame) of
     Just a -> do
       liftIO $ writeIORef a value
-      return value
+      return Void
     Nothing ->
       case envFrame of
         Global _ -> throwError $ UnboundVar "Getting an unbound variable" var
@@ -268,7 +276,7 @@ bindVars envRef bindings' = do
 --------------
 -- Apply
 --------------
-apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
+apply :: LispVal -> IOPrimitiveFunc
 apply (PrimitiveFunc _ func) args = liftThrows $ func args
 apply (Func _ params' varargs body' closure') args =
   if num params' /= num args && isNothing varargs
@@ -290,6 +298,23 @@ apply f _ =
   "application: not a procedure; " ++
   "expected a procedure that can be applied to arguments; given: " ++ show f
 
+applyProc :: IOPrimitiveFunc
+applyProc [func, List args] = apply func args
+applyProc (func:args) = apply func args
+applyProc _ = throwError $ Default "applyProc error"
+
+readProc :: IOPrimitiveFunc
+readProc [] = readProc [Port stdin]
+readProc [Port port] = (liftIO $ hGetLine port) >>= liftThrows . readExpr
+readProc _ = throwError $ Default "readProc error"
+
+load :: String -> IOThrowsError [LispVal]
+load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
+
+readAll :: IOPrimitiveFunc
+readAll [String filename] = fmap List $ load filename
+readAll _ = throwError $ Default "readAll error"
+
 --------------
 -- Env
 -- Bindings
@@ -302,7 +327,15 @@ primitiveBindings :: IO Env -- TODO: Move. Here for now just to prevent circular
 primitiveBindings =
   nullEnv >>=
   (flip bindVars $
-   map (makeFunc' IOFunc) ioPrimitives ++
+   map
+     (makeFunc' IOFunc)
+     (ioPrimitives ++
+      [ ("apply", applyProc)
+      , ("read", readProc)
+      , ("read-all", readAll)
+      , ("read", readProc)
+      , ("read-all", readAll)
+      ]) ++
    map (makeFunc' PrimitiveFunc) primitives)
   where
     makeFunc' ::
@@ -316,53 +349,6 @@ loadStdLib env = do
   filename <- liftIO $ getDataFileName "lib/stdlib.scm"
   _ <- evalString env $ "(load \"" ++ filename ++ "\")"
   return env
-
-ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
-ioPrimitives =
-  [ ("apply", applyProc)
-  , ("open-input-file", makePort ReadMode)
-  , ("open-output-file", makePort WriteMode)
-  , ("close-input-port", closePort)
-  , ("close-output-port", closePort)
-  , ("read", readProc)
-  , ("write", writeProc)
-  , ("read-contents", readContents)
-  , ("read-all", readAll)
-  ]
-
-applyProc :: [LispVal] -> IOThrowsError LispVal
-applyProc [func, List args] = apply func args
-applyProc (func:args) = apply func args
-applyProc _ = throwError $ Default "applyProc error"
-
-makePort :: IOMode -> [LispVal] -> IOThrowsError LispVal
-makePort mode [String filename] = fmap Port $ liftIO $ openFile filename mode
-makePort _ _ = throwError $ Default "makePort error"
-
-closePort :: [LispVal] -> IOThrowsError LispVal
-closePort [Port port] = liftIO $ hClose port >> (return $ Bool True)
-closePort _ = return $ Bool False
-
-readProc :: [LispVal] -> IOThrowsError LispVal
-readProc [] = readProc [Port stdin]
-readProc [Port port] = (liftIO $ hGetLine port) >>= liftThrows . readExpr
-readProc _ = throwError $ Default "readProc error"
-
-writeProc :: [LispVal] -> IOThrowsError LispVal
-writeProc [obj] = writeProc [obj, Port stdout]
-writeProc [obj, Port port] = liftIO $ hPrint port obj >> (return $ Bool True)
-writeProc _ = throwError $ Default "writeProc error"
-
-readContents :: [LispVal] -> IOThrowsError LispVal
-readContents [String filename] = fmap String $ liftIO $ readFile filename
-readContents _ = throwError $ Default "readContents error"
-
-load :: String -> IOThrowsError [LispVal]
-load filename = (liftIO $ readFile filename) >>= liftThrows . readExprList
-
-readAll :: [LispVal] -> IOThrowsError LispVal
-readAll [String filename] = fmap List $ load filename
-readAll _ = throwError $ Default "readAll error"
 
 --------------
 -- Run

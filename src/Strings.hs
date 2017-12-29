@@ -6,6 +6,19 @@ import DataTypes
        (LispError(..), LispVal(..), PrimitiveFunc, ThrowsError)
 import Util (boolBinop)
 
+strPrimitives :: [(String, PrimitiveFunc)]
+strPrimitives =
+  [ ("string=?", strBoolBinop (==))
+  , ("string<?", strBoolBinop (<))
+  , ("string>?", strBoolBinop (>))
+  , ("string<=?", strBoolBinop (<=))
+  , ("string>=?", strBoolBinop (>=))
+  , ("string?", isString)
+  , ("make-string", makeString)
+  , ("string-length", strLen)
+  , ("string-append", strAppend)
+  ]
+
 unpackStr :: LispVal -> ThrowsError String
 unpackStr (String s) = return s
 unpackStr notString = throwError $ TypeMismatch "string" notString
@@ -33,16 +46,3 @@ strAppend [] = return $ String ""
 strAppend [s@(String _)] = return s
 strAppend ((String s1):(String s2):xs) = strAppend (String (s1 ++ s2) : xs)
 strAppend _ = throwError $ Default "Invalid arguments to `string-append`"
-
-strPrimitives :: [(String, PrimitiveFunc)]
-strPrimitives =
-  [ ("string=?", strBoolBinop (==))
-  , ("string<?", strBoolBinop (<))
-  , ("string>?", strBoolBinop (>))
-  , ("string<=?", strBoolBinop (<=))
-  , ("string>=?", strBoolBinop (>=))
-  , ("string?", isString)
-  , ("make-string", makeString)
-  , ("string-length", strLen)
-  , ("string-append", strAppend)
-  ]
