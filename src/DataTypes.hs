@@ -7,7 +7,14 @@ import Data.Ratio
 import GHC.IO.Handle
 import ParserCombinators (ParseError)
 
-type Env = IORef [(String, IORef LispVal)]
+type Env = IORef EnvFrame
+
+type Bindings = [(String, IORef LispVal)]
+
+data EnvFrame
+  = Global { bindings :: Bindings }
+  | Frame { parent :: Env
+          , bindings :: Bindings }
 
 type IOThrowsError = ExceptT LispError IO
 
