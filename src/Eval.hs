@@ -7,9 +7,9 @@ import Data.IORef
 import Data.Maybe (isNothing)
 import Data.Ratio
 import DataTypes
-       (Arity(..), Env, EnvFrame(..), IOPrimitiveFunc, IOThrowsError,
-        LispError(..), LispVal(..), PrimitiveFunc, ThrowsError,
-        extractValue, showVal, trapError)
+       (Arity(..), Env, IOPrimitiveFunc, IOThrowsError, LispError(..),
+        LispVal(..), PrimitiveFunc, ThrowsError, extractValue, showVal,
+        trapError)
 import Parse
 import ParserCombinators
 import Paths_hascheme (getDataFileName)
@@ -150,10 +150,10 @@ eval env (List [Atom "load-print", String filename]) =
   load filename >>= fmap List . mapM (eval env)
 eval env (List (Atom "vector-set!":args)) =
   case args of
-    [Atom var, Integer n, v] -> do
-      Vector vec <- getVar env var
+    [var@(Atom varName), Integer n, v] -> do
+      Vector vec <- eval env var
       if n < (fromIntegral $ length vec)
-        then setVar env var $ Vector $ vec // [(n, v)]
+        then setVar env varName $ Vector $ vec // [(n, v)]
         else throwError $ outOfBoundsError "vector-ref" n vec
     [a, b, c] ->
       throwError $ TypeMismatch "vector, integer, integer" $ List [a, b, c]
@@ -207,68 +207,42 @@ makeNormalFunc name' = makeFunc name' Nothing
 makeVarArgs :: String -> LispVal -> Env -> [LispVal] -> IOPrimitiveFunc
 makeVarArgs name' = (makeFunc name') . Just . showVal
 
-isBoundLocal :: EnvFrame -> String -> IO Bool
-isBoundLocal envFrame var =
-  case lookup var (bindings envFrame) of
-    Nothing -> return False
-    Just _ -> return True
-
 isBound :: Env -> String -> IO Bool
-isBound envRef var = do
-  env <- readIORef envRef
-  localBound <- isBoundLocal env var
-  if localBound
-    then return True
-    else case env of
-           Global _ -> return False
-           Frame {parent = parent'} -> isBound parent' var
+isBound envRef var =
+  readIORef envRef >>= return . maybe False (const True) . lookup var
 
 getVar :: Env -> String -> IOThrowsError LispVal
 getVar envRef var = do
-  envFrame <- liftIO $ readIORef envRef
-  case lookup var (bindings envFrame) of
-    Just a -> liftIO $ readIORef a
-    Nothing ->
-      case envFrame of
-        Global _ -> throwError $ UnboundVar "Getting an unbound variable" var
-        Frame {parent = parent'} -> getVar parent' var
+  env <- liftIO $ readIORef envRef
+  maybe
+    (throwError $ UnboundVar "Getting an unbound variable" var)
+    (liftIO . readIORef)
+    (lookup var env)
 
 setVar :: Env -> String -> LispVal -> IOThrowsError LispVal
 setVar envRef var value = do
-  envFrame <- liftIO $ readIORef envRef
-  case lookup var (bindings envFrame) of
-    Just a -> do
-      liftIO $ writeIORef a value
-      return Void
-    Nothing ->
-      case envFrame of
-        Global _ -> throwError $ UnboundVar "Getting an unbound variable" var
-        Frame {parent = parent'} -> setVar parent' var value
+  env <- liftIO $ readIORef envRef
+  maybe
+    (throwError $ UnboundVar "Setting an unbound variable" var)
+    (liftIO . (flip writeIORef value))
+    (lookup var env)
+  return value
 
 defineVar :: Env -> String -> LispVal -> IOThrowsError LispVal
 defineVar envRef var value = do
-  envFrame <- liftIO $ readIORef envRef
-  alreadyLocallyDefined <- liftIO $ isBoundLocal envFrame var
-  if alreadyLocallyDefined
-    then throwError $
-         Default $ "Duplicate definition for identifier in: " ++ var
+  alreadyDefined <- liftIO $ isBound envRef var
+  if alreadyDefined
+    then setVar envRef var value >> return Void
     else liftIO $ do
            valueRef <- newIORef value
            env <- readIORef envRef
-           liftIO $
-             writeIORef envRef $
-             envFrame {bindings = ((var, valueRef) : (bindings env))}
+           writeIORef envRef ((var, valueRef) : env)
            return Void
 
 bindVars :: Env -> [(String, LispVal)] -> IO Env
-bindVars envRef bindings' = do
-  extended <- extendEnv bindings' envRef
-  newIORef extended
+bindVars envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
   where
-    extendEnv :: [(String, LispVal)] -> Env -> IO EnvFrame
-    extendEnv bindings'' env = do
-      newBindings <- liftIO $ mapM addBinding bindings''
-      return $ Frame {parent = env, bindings = newBindings}
+    extendEnv bindings' env = liftM (++ env) (mapM addBinding bindings')
     addBinding (var, value) = do
       ref <- newIORef value
       return (var, ref)
@@ -321,7 +295,7 @@ readAll _ = throwError $ Default "readAll error"
 -- Primitives
 --------------
 nullEnv :: IO Env
-nullEnv = newIORef $ Global {bindings = []}
+nullEnv = newIORef $ []
 
 primitiveBindings :: IO Env -- TODO: Move. Here for now just to prevent circular dependency
 primitiveBindings =
