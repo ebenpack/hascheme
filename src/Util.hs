@@ -1,6 +1,8 @@
 module Util where
 
+import Control.Monad
 import Control.Monad.Except
+import Data.Map as M
 import DataTypes
        (Arity(..), IOThrowsError, LispError(..), LispVal(..), ThrowsError)
 
@@ -13,7 +15,7 @@ boolBinop unpacker op args =
   if length args /= 2
     then throwError $ NumArgs (MinMax 2 2) (fromIntegral $ length args) args
     else do
-      left <- unpacker $ args !! 0
+      left <- unpacker $ head args
       right <- unpacker $ args !! 1
       return $ Bool $ left `op` right
 

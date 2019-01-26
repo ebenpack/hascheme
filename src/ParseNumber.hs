@@ -37,9 +37,9 @@ parseIntegerBase base =
 
 parseIntegerHelper :: ReadS Integer -> Parser Char -> Parser LispVal
 parseIntegerHelper reader parser =
-  (char '-' >> (parseIntegerHelper' negate)) <|>
-  (char '+' >> (parseIntegerHelper' id)) <|>
-  (parseIntegerHelper' id)
+  (char '-' >> parseIntegerHelper' negate) <|>
+  (char '+' >> parseIntegerHelper' id) <|>
+  parseIntegerHelper' id
   where
     parseIntegerHelper' :: (Integer -> Integer) -> Parser LispVal
     parseIntegerHelper' op = Integer . op . fst . head . reader <$> many1 parser
@@ -87,10 +87,10 @@ parseFloatBinary = parseFloatHelper 2 (oneOf "01") readBinary
 parseFloatHex :: Parser LispVal
 parseFloatHex = parseFloatHelper 16 hexDigit readHex
 
-parseFloatHelper :: Int -> Parser Char -> (ReadS Integer) -> Parser LispVal
+parseFloatHelper :: Int -> Parser Char -> ReadS Integer -> Parser LispVal
 parseFloatHelper base p reader =
-  (char '-' >> (parseFloat' negate)) <|> (char '+' >> parseFloat' id) <|>
-  (parseFloat' id)
+  (char '-' >> parseFloat' negate) <|> (char '+' >> parseFloat' id) <|>
+  parseFloat' id
   where
     helper :: Integer -> Integer -> Double
     helper whole decimal =
@@ -110,7 +110,7 @@ parseFloatHelper base p reader =
       d <- many1 p
       let whole = fst . head $ reader w
           decimal = fst . head $ reader d
-      return $ Float $ (op (helper whole decimal))
+      return $ Float $ op (helper whole decimal)
 
 --------------
 -- Complex

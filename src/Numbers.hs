@@ -13,7 +13,7 @@ numPrimitives =
   , ("*", numMul)
   , ("/", numDiv)
   , ("modulo", numMod)
-  , ("Integer?", isNumber)
+  , ("number?", isNumber)
   , ("complex?", isComplex)
   , ("real?", isReal)
   , ("rational?", isRational)
@@ -31,7 +31,7 @@ numPrimitives =
   ]
 
 foldlM :: Monad m => (a -> b -> m a) -> a -> [b] -> m a
-foldlM f v (x:xs) = (f v x) >>= \a -> foldlM f a xs
+foldlM f v (x:xs) = f v x >>= \a -> foldlM f a xs
 foldlM _ v [] = return v
 
 foldl1M :: Monad m => (a -> a -> m a) -> [a] -> m a
@@ -40,7 +40,7 @@ foldl1M _ _ = error "Unexpected error in foldl1M"
 
 numAdd :: PrimitiveFunc
 numAdd [] = return $ Integer 0
-numAdd a = foldlM (\b c -> doAdd =<< (numCast [b, c])) (Integer 0) a
+numAdd a = foldlM (\b c -> doAdd =<< numCast [b, c]) (Integer 0) a
   where
     doAdd :: LispVal -> ThrowsError LispVal
     doAdd (List [Integer c, Integer d]) = return $ Integer (c + d)
@@ -51,7 +51,7 @@ numAdd a = foldlM (\b c -> doAdd =<< (numCast [b, c])) (Integer 0) a
 
 numSub :: PrimitiveFunc
 numSub [] = throwError $ NumArgs (Min 1) 0 []
-numSub a = foldl1M (\b c -> doSub =<< (numCast [b, c])) a -- TODO zero args check
+numSub a = foldl1M (\b c -> doSub =<< numCast [b, c]) a -- TODO zero args check
   where
     doSub :: LispVal -> ThrowsError LispVal
     doSub (List [Integer c, Integer d]) = return $ Integer (c - d)
@@ -62,7 +62,7 @@ numSub a = foldl1M (\b c -> doSub =<< (numCast [b, c])) a -- TODO zero args chec
 
 numMul :: PrimitiveFunc
 numMul [] = return $ Integer 1
-numMul a = foldl1M (\b c -> doMul =<< (numCast [b, c])) a
+numMul a = foldl1M (\b c -> doMul =<< numCast [b, c]) a
   where
     doMul :: LispVal -> ThrowsError LispVal
     doMul (List [Integer c, Integer d]) = return $ Integer (c * d)
@@ -73,7 +73,7 @@ numMul a = foldl1M (\b c -> doMul =<< (numCast [b, c])) a
 
 numDiv :: PrimitiveFunc
 numDiv [] = throwError $ NumArgs (Min 1) 0 []
-numDiv a = foldl1M (\b c -> doDiv =<< (numCast [b, c])) a -- TODO: Zero division error
+numDiv a = foldl1M (\b c -> doDiv =<< numCast [b, c]) a -- TODO: Zero division error
   where
     doDiv :: LispVal -> ThrowsError LispVal
     doDiv (List [Integer c, Integer d]) =
@@ -96,9 +96,9 @@ numDiv a = foldl1M (\b c -> doDiv =<< (numCast [b, c])) a -- TODO: Zero division
 
 numMod :: PrimitiveFunc
 numMod [] = throwError $ NumArgs (MinMax 2 2) 0 []
-numMod (a:[]) = throwError $ NumArgs (MinMax 2 2) 1 [a]
+numMod [a] = throwError $ NumArgs (MinMax 2 2) 1 [a]
 numMod [a, b] = do
-  c <- numCast $ [a, b]
+  c <- numCast [a, b]
   doMod c
   where
     doMod :: LispVal -> ThrowsError LispVal
@@ -120,9 +120,9 @@ numMod a = throwError $ NumArgs (MinMax 2 2) (length a) a
 
 numRem :: PrimitiveFunc
 numRem [] = throwError $ NumArgs (MinMax 2 2) 0 []
-numRem (a:[]) = throwError $ NumArgs (MinMax 2 2) 1 [a]
+numRem [a] = throwError $ NumArgs (MinMax 2 2) 1 [a]
 numRem [a, b] = do
-  c <- numCast $ [a, b]
+  c <- numCast [a, b]
   doRem c
   where
     doRem :: LispVal -> ThrowsError LispVal
@@ -185,24 +185,24 @@ numCast [a@(Rational _), b@(Rational _)] = return $ List [a, b]
 numCast [a@(Float _), b@(Float _)] = return $ List [a, b]
 numCast [a@(Complex _), b@(Complex _)] = return $ List [a, b]
 -- Integer
-numCast [(Integer a), b@(Rational _)] = return $ List [Rational (a % 1), b]
-numCast [(Integer a), b@(Float _)] = return $ List [Float (fromInteger a), b]
-numCast [(Integer a), b@(Complex _)] =
+numCast [Integer a, b@(Rational _)] = return $ List [Rational (a % 1), b]
+numCast [Integer a, b@(Float _)] = return $ List [Float (fromInteger a), b]
+numCast [Integer a, b@(Complex _)] =
   return $ List [Complex (fromInteger a :+ 0), b]
 -- Rational
-numCast [a@(Rational _), (Integer b)] = return $ List [a, Rational (b % 1)]
-numCast [(Rational a), b@(Float _)] = return $ List [Float (fromRational a), b]
-numCast [(Rational a), b@(Complex _)] =
+numCast [a@(Rational _), Integer b] = return $ List [a, Rational (b % 1)]
+numCast [Rational a, b@(Float _)] = return $ List [Float (fromRational a), b]
+numCast [Rational a, b@(Complex _)] =
   return $ List [Complex (fromRational a :+ 0), b]
 -- Float
-numCast [a@(Float _), (Rational b)] = return $ List [a, Float (fromRational b)]
-numCast [a@(Float _), (Integer b)] = return $ List [a, Float (fromInteger b)]
-numCast [(Float a), b@(Complex _)] = return $ List [Complex (a :+ 0), b]
+numCast [a@(Float _), Rational b] = return $ List [a, Float (fromRational b)]
+numCast [a@(Float _), Integer b] = return $ List [a, Float (fromInteger b)]
+numCast [Float a, b@(Complex _)] = return $ List [Complex (a :+ 0), b]
 -- Complex
-numCast [a@(Complex _), (Rational b)] =
+numCast [a@(Complex _), Rational b] =
   return $ List [a, Complex (fromRational b :+ 0)]
-numCast [a@(Complex _), (Float b)] = return $ List [a, Complex (b :+ 0)]
-numCast [a@(Complex _), (Integer b)] =
+numCast [a@(Complex _), Float b] = return $ List [a, Complex (b :+ 0)]
+numCast [a@(Complex _), Integer b] =
   return $ List [a, Complex (fromInteger b :+ 0)]
 numCast [a, b] =
   case a of
@@ -324,8 +324,8 @@ unaryTrig op complexOp args =
            _ -> throwError $ Default "Numerical input expected"
 
 numSine :: PrimitiveFunc
-numSine = unaryTrig sin (\r i -> ((sin r) * (cosh i)) :+ ((cos r) * (sinh i)))
+numSine = unaryTrig sin (\r i -> sin r * cosh i :+ cos r * sinh i)
 
 numCos :: PrimitiveFunc
 numCos =
-  unaryTrig cos (\r i -> ((cos r) * (cosh i)) :+ (-1 * ((sin r) * (sinh i))))
+  unaryTrig cos (\r i -> cos r * cosh i :+ (-1 * sin r * sinh i))

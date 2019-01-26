@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module ParserCombinators
   ( ParseError(..)
   , Parser(..)
@@ -36,7 +38,7 @@ import Data.Char
 import Control.Applicative (Applicative)
 import Control.Monad (ap, liftM)
 
-data ParseError =
+newtype ParseError =
   ParseError String
   deriving (Show, Eq)
 
@@ -71,8 +73,7 @@ failure s =
 
 item :: Parser Char
 item =
-  Parser $ \inp ->
-    case inp of
+  Parser $ \case
       [] -> Left (ParseError "'Item' run on empty input", [])
       (x:xs) -> Right [(x, xs)]
 

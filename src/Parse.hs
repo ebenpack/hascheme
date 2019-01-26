@@ -121,7 +121,7 @@ parseVector = do
     if open == '('
       then char ')'
       else char ']'
-  let len = (length list) - 1
+  let len = length list - 1
   return $ Vector $ listArray (0, fromIntegral len) list
 
 --------------

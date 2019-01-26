@@ -1,0 +1,94 @@
+hascheme-0.1.0.0: unregistering (local file changes: README.md app/Main.hs hascheme.cabal lib/stdlib.scm src/DataTypes.hs src/Eval.hs src/Lists.hs src...)
+Building all executables for `hascheme' once. After a successful build of all of them, only specified executables will be rebuilt.
+hascheme-0.1.0.0: configure (lib + exe)
+Configuring hascheme-0.1.0.0...
+hascheme-0.1.0.0: build (lib + exe)
+Preprocessing library hascheme-0.1.0.0...
+[ 1 of 11] Compiling Paths_hascheme   ( .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/autogen/Paths_hascheme.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Paths_hascheme.o )
+[ 2 of 11] Compiling ParserCombinators ( src/ParserCombinators.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/ParserCombinators.o )
+[ 3 of 11] Compiling DataTypes        ( src/DataTypes.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/DataTypes.o )
+
+/Users/ebenpack/hascheme/src/DataTypes.hs:122:1: warning: [-Wmissing-signatures]
+    Top-level binding with no type signature:
+      trapError :: (Show a, MonadError a m) => m String -> m String
+
+/Users/ebenpack/hascheme/src/DataTypes.hs:125:1: warning: [-Wincomplete-patterns]
+    Pattern match(es) are non-exhaustive
+    In an equation for ‘extractValue’: Patterns not matched: (Left _)
+[ 4 of 11] Compiling Lists            ( src/Lists.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Lists.o )
+[ 5 of 11] Compiling Numbers          ( src/Numbers.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Numbers.o )
+[ 6 of 11] Compiling ParseNumber      ( src/ParseNumber.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/ParseNumber.o )
+
+/Users/ebenpack/hascheme/src/ParseNumber.hs:103:22: warning: [-Wtype-defaults]
+    • Defaulting the following constraint to type ‘Integer’
+        Integral a0 arising from a use of ‘fromIntegral’
+    • In the expression: fromIntegral $ floor e
+      In an equation for ‘f’: f = fromIntegral $ floor e
+      In the expression:
+        let
+          d = fromIntegral decimal :: Double
+          w = fromIntegral whole :: Double
+          b = fromIntegral base :: Double
+          ....
+        in w + g
+
+/Users/ebenpack/hascheme/src/ParseNumber.hs:158:5: warning: [-Wincomplete-patterns]
+    Pattern match(es) are non-exhaustive
+    In an equation for ‘toDouble’:
+        Patterns not matched:
+            (Atom _)
+            (List _)
+            (DottedList _ _)
+            (Complex _)
+            ...
+
+/Users/ebenpack/hascheme/src/ParseNumber.hs:188:5: warning: [-Wincomplete-patterns]
+    Pattern match(es) are non-exhaustive
+    In an equation for ‘toInt’:
+        Patterns not matched:
+            (Atom _)
+            (List _)
+            (DottedList _ _)
+            (Rational _)
+            ...
+[ 7 of 11] Compiling Parse            ( src/Parse.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Parse.o )
+
+/Users/ebenpack/hascheme/src/Parse.hs:37:9: warning: [-Wincomplete-patterns]
+    Pattern match(es) are non-exhaustive
+    In a case alternative:
+        Patterns not matched:
+            p where p is not one of {'t', 'r', 'n', '"', '\\'}
+
+/Users/ebenpack/hascheme/src/Parse.hs:68:5: warning: [-Wincomplete-patterns]
+    Pattern match(es) are non-exhaustive
+    In a case alternative:
+        Patterns not matched:
+            []
+            (p:_:_)
+                where p is not one of {'t', 'r', 'p', 'l', 'c', 'b', 'a', 's', 'n'}
+            ('t':p:_) where p is not one of {'a'}
+            ['t', 'a']
+            ...
+[ 8 of 11] Compiling Util             ( src/Util.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Util.o )
+[ 9 of 11] Compiling Strings          ( src/Strings.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Strings.o )
+[10 of 11] Compiling Primitives       ( src/Primitives.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Primitives.o )
+[11 of 11] Compiling Eval             ( src/Eval.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/Eval.o )
+
+/Users/ebenpack/hascheme/src/Eval.hs:179:1: warning: [-Wincomplete-patterns]
+    Pattern match(es) are non-exhaustive
+    In an equation for ‘extractVar’:
+        Patterns not matched:
+            (List _)
+            (DottedList _ _)
+            (Integer _)
+            (Rational _)
+            ...
+Preprocessing executable 'hascheme' for hascheme-0.1.0.0...
+[1 of 1] Compiling Main             ( app/Main.hs, .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/hascheme/hascheme-tmp/Main.o )
+Linking .stack-work/dist/x86_64-osx/Cabal-1.24.2.0/build/hascheme/hascheme ...
+hascheme-0.1.0.0: copy/register
+Installing library in
+/Users/ebenpack/hascheme/.stack-work/install/x86_64-osx/lts-9.14/8.0.2/lib/x86_64-osx-ghc-8.0.2/hascheme-0.1.0.0-6W167SWyPATAu8INqslzD7
+Installing executable(s) in
+/Users/ebenpack/hascheme/.stack-work/install/x86_64-osx/lts-9.14/8.0.2/bin
+Registering hascheme-0.1.0.0...

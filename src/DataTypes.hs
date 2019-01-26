@@ -4,18 +4,18 @@ import Control.Monad.Except
 import Data.Array
 import Data.Complex
 import Data.IORef
+import Data.Map (Map, empty)
 import Data.Ratio
 import GHC.IO.Handle
 import ParserCombinators (ParseError)
 
-type Env = IORef EnvFrame
+type Bindings = IORef (Map String (IORef LispVal))
 
-type Bindings = [(String, IORef LispVal)]
-
-data EnvFrame
-  = Global { bindings :: Bindings }
-  | Frame { parent :: Env
-          , bindings :: Bindings }
+data Env = Frame
+  { parent :: Maybe Env
+  , references :: Bindings
+  , bindings :: Bindings
+  }
 
 type IOThrowsError = ExceptT LispError IO
 
@@ -63,9 +63,11 @@ data LispVal
                   PrimitiveFunc
   | Func { name :: String
          , params :: [String]
-         , vararg :: (Maybe String)
+         , vararg :: Maybe String
          , body :: [LispVal]
          , closure :: Env }
+  | Pointer { pointerVar :: String
+            , pointerEnv :: Env }
   | Void
 
 instance Show LispVal where
@@ -103,6 +105,7 @@ showVal Func {name = name'} = "#<procedure:" ++ name' ++ ">"
 showVal (Port _) = "<IO port>"
 showVal (IOFunc name' _) = "#<IO primitive:" ++ name' ++ ">"
 showVal Void = ""
+showVal (Pointer v e) = "Pointer " ++ v
 
 showError :: LispError -> String
 showError (Default message) = message

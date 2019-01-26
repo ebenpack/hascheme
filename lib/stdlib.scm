@@ -76,3 +76,11 @@
                 (cons x y) 
                 y))
     '() ls))
+
+(define (vector-map! fn v)
+    (define (go i)
+        (cond
+            [(< i (vector-length v))
+                (vector-set! i (fn (vector-ref v i)))
+            ]))
+    (go 0))

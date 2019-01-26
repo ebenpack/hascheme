@@ -18,7 +18,7 @@ listPrimitives =
 car :: PrimitiveFunc
 car [DottedList (x:_) _] = return x
 car [List []] = throwError $ Default "Unexpected error in car"
-car [List (x:_)] = return $ x
+car [List (x:_)] = return x
 car [badArg] = throwError $ Default $ "car expected pair, found " ++ show badArg
 car badArgList =
   throwError $ NumArgs (MinMax 1 1) (length badArgList) badArgList
@@ -27,7 +27,7 @@ cdr :: PrimitiveFunc
 cdr [DottedList [_] a] = return a
 cdr [DottedList (_:xs) a] = return $ DottedList xs a
 cdr [List []] = throwError $ Default "cdr on empty list" -- TODO: FIX ERROR MSG
-cdr [List (_:[])] = return $ List []
+cdr [List [_]] = return $ List []
 cdr [List (_:a)] = return $ List a
 cdr [badArg] = throwError $ Default $ "cdr expected pair, found " ++ show badArg
 cdr badArgList =
